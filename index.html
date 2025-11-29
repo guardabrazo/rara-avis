@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Rara Avis</title>
+    <link href='https://api.mapbox.com/mapbox-gl-js/v3.0.1/mapbox-gl.css' rel='stylesheet' />
+</head>
+
+<body>
+    <div id="zen-overlay" class="init-overlay hidden" style="display: none;">
+        <div class="init-content">
+            <p>PRESS <span class="esc-key">ESC</span> TO EXIT ZEN MODE</p>
+        </div>
+    </div>
+
+    <div class="app-container">
+        <!-- Background Map -->
+        <div id="map" class="map-container"></div>
+        <div class="scanner-crosshair">
+            <div class="crosshair-h"></div>
+            <div class="crosshair-v"></div>
+            <div class="crosshair-center"></div>
+        </div>
+
+        <!-- Compass HUD -->
+        <div id="compass-container">
+            <div id="compass-ring"></div>
+            <div id="compass-markers"></div>
+        </div>
+
+        <header class="app-header">
+            <div class="header-left">
+                <h1>RARA AVIS</h1>
+            </div>
+            <div class="header-right">
+                <div class="version-badge">GEOSPATIAL INSTRUMENT</div>
+                <span class="version-number">V 1.0</span>
+            </div>
+        </header>
+
+        <main class="main-grid">
+            <!-- Left Column -->
+            <aside class="left-column">
+                <div id="app">
+
+                    <!-- Left Column: Navigation & View -->
+                    <section class="panel left-panel nav-panel">
+                        <div class="panel-header">
+                            <span class="panel-title">NAVIGATION</span>
+                        </div>
+                        <div class="panel-content">
+                            <div class="control-row">
+                                <label>FLIGHT</label>
+                                <label class="toggle-wrapper gray-outline" for="flight-toggle">
+                                    <input type="checkbox" id="flight-toggle" checked />
+                                    <span class="toggle-indicator"></span>
+                                </label>
+                            </div>
+
+                            <div class="control-row">
+                                <label>AUTOPILOT</label>
+                                <label class="toggle-wrapper gray-outline" for="autopilot-toggle">
+                                    <input type="checkbox" id="autopilot-toggle" checked />
+                                    <span class="toggle-indicator"></span>
+                                </label>
+                            </div>
+
+                            <div class="control-row">
+                                <label>HEADING</label>
+                                <div class="control-wrapper">
+                                    <input type="range" id="heading-slider" min="0" max="360" value="90" disabled />
+                                    <span class="value-display" id="heading-val">90°</span>
+                                </div>
+                            </div>
+
+                            <div class="control-row">
+                                <label>SPEED</label>
+                                <div class="control-wrapper">
+                                    <input type="range" id="fly-speed" min="0" max="10" step="0.1" value="1" />
+                                    <span class="value-display" id="fly-speed-val">1</span>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- View Panel (Bottom) -->
+                    <section class="panel left-panel view-panel" style="margin-top: auto;">
+                        <div class="panel-header">
+                            <span class="panel-title">VIEW</span>
+                        </div>
+                        <div class="panel-content">
+                            <div class="control-row">
+                                <label>MAP STYLE</label>
+                                <select id="map-style">
+                                    <option value="mapbox://styles/mapbox/dark-v11" selected>DARK</option>
+                                    <option value="mapbox://styles/mapbox/satellite-v9">SATELLITE</option>
+                                    <option value="mapbox://styles/mapbox/outdoors-v12">OUTDOORS</option>
+                                </select>
+                            </div>
+                            <div class="control-row">
+                                <label>COMPASS</label>
+                                <label class="toggle-wrapper gray-outline" for="compass-toggle">
+                                    <input type="checkbox" id="compass-toggle" checked />
+                                    <span class="toggle-indicator"></span>
+                                </label>
+                            </div>
+                            <div class="control-group" style="width: 100%;">
+                                <button id="zen-mode-btn" class="action-btn" style="width: 100%;">ZEN MODE</button>
+                            </div>
+                        </div>
+                    </section>
+
+
+            </aside>
+
+            <!-- Center Panel: Map (Transparent) -->
+            <section class="panel center-panel">
+                <!-- Map is now in background -->
+            </section>
+
+            <!-- Right Panel: Now Playing -->
+            <aside class="panel right-panel">
+                <div class="panel-section">
+                    <div class="panel-header">
+                        <span class="panel-title">NOW PLAYING</span>
+                    </div>
+                    <div class="panel-content" id="now-playing-list">
+                        <!-- Bird cards will be injected here -->
+                    </div>
+                </div>
+
+                <div class="panel-section audio-section">
+                    <div class="panel-header">
+                        <span class="panel-title">AUDIO</span>
+                    </div>
+                    <div class="panel-content">
+                        <div class="control-group">
+                            <label>BIRDS</label>
+                            <div class="slider-container">
+                                <input type="range" id="birds-volume" min="0" max="100" value="70">
+                                <span class="value-display" id="birds-volume-val">70%</span>
+                            </div>
+                        </div>
+                        <div class="control-group">
+                            <label>BACKGROUND</label>
+                            <div class="slider-container">
+                                <input type="range" id="field-volume" min="0" max="100" value="50">
+                                <span class="value-display" id="field-volume-val">50%</span>
+                            </div>
+                        </div>
+                        <div class="transport-controls">
+                            <button id="play-btn" class="btn-transport highlight-pulse">PLAY</button>
+                            <button id="stop-btn" class="btn-transport">STOP</button>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+        </main>
+
+        <footer class="app-footer">
+            <div class="footer-left">
+                <div class="badge-box">
+                    <span class="badge-text">GUARDABRAZO</span>
+                    <div class="footer-links">
+                        <a href="https://instagram.com/guardabrazo" target="_blank"
+                            rel="noopener noreferrer">INSTAGRAM</a>
+                        <span class="separator">|</span>
+                        <a href="https://linkedin.com/in/guardabrazo" target="_blank"
+                            rel="noopener noreferrer">LINKEDIN</a>
+                        <span class="separator">|</span>
+                        <a href="https://guardabrazo.com" target="_blank" rel="noopener noreferrer">WEBSITE</a>
+                    </div>
+                </div>
+            </div>
+            <div class="credits-text">
+                <p>ALGORITHMICALLY GENERATED</p>
+            </div>
+        </footer>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+</body>
+
+</html>

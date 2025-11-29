@@ -1,0 +1,1049 @@
+/* ==========================================
+   TOPOSYNTH - GUARDABRAZO STYLE
+   ========================================== */
+
+/* CSS Variables */
+:root {
+    /* Color Palette - Monochromatic */
+    --bg-base: #050505;
+    --bg-elevated: #050505;
+    --bg-panel: #050505;
+
+    --border-subtle: #1a1a1a;
+    --border-medium: #2a2a2a;
+    --border-interactive: #4a4a4a;
+    --border-active: #ffffff;
+
+    --text-primary: #ffffff;
+    --text-secondary: #a0a0a0;
+    --text-muted: #606060;
+
+    --accent: #ffffff;
+
+    /* Typography */
+    --font-main: 'Helvetica Neue', 'Segoe UI', Arial, sans-serif;
+    --letter-spacing-sm: 2px;
+    --letter-spacing-lg: 4px;
+
+    /* Spacing */
+    --spacing-xs: 4px;
+    --spacing-sm: 8px;
+    --spacing-md: 16px;
+    --spacing-lg: 24px;
+    --spacing-xl: 32px;
+
+    /* Transitions */
+    --transition-fast: 0.15s ease;
+    --transition-medium: 0.3s ease;
+
+    /* Compass Themes */
+    /* Default (Dark / Standard) */
+    --compass-primary: var(--accent);
+    --compass-secondary: var(--text-muted);
+    --compass-bg: transparent;
+}
+
+/* Theme: Outdoors (Light Map) */
+.theme-outdoors {
+    --compass-primary: #000000;
+    --compass-secondary: #666666;
+    --compass-bg: rgba(255, 255, 255, 0.4);
+}
+
+/* Theme: Satellite (High Contrast) */
+.theme-satellite {
+    --compass-primary: #ffffff;
+    --compass-secondary: rgba(255, 255, 255, 0.7);
+    --compass-bg: rgba(0, 0, 0, 0.2);
+}
+
+/* Reset & Base */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html,
+body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+body {
+    font-family: var(--font-main);
+    background: var(--bg-base);
+    color: var(--text-primary);
+    cursor: crosshair;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* Audio Initialization Overlay */
+.init-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: var(--bg-base);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    cursor: pointer;
+    transition: opacity var(--transition-medium);
+}
+
+.init-overlay.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.init-content {
+    text-align: center;
+    position: relative;
+}
+
+.init-content h2 {
+    font-size: 48px;
+    font-weight: normal;
+    letter-spacing: var(--letter-spacing-lg);
+    margin-bottom: var(--spacing-lg);
+}
+
+.init-content p {
+    font-size: 14px;
+    letter-spacing: var(--letter-spacing-sm);
+    color: var(--text-secondary);
+    text-transform: uppercase;
+}
+
+.init-crosshair {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 60px;
+    height: 60px;
+    opacity: 0.3;
+}
+
+.init-crosshair::before,
+.init-crosshair::after {
+    content: '';
+    position: absolute;
+    background: var(--accent);
+}
+
+.init-crosshair::before {
+    top: 50%;
+    left: 0;
+    width: 100%;
+    height: 1px;
+}
+
+.init-crosshair::after {
+    left: 50%;
+    top: 0;
+    width: 1px;
+    height: 100%;
+}
+
+/* App Container */
+#app {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    height: 100%;
+}
+
+.app-container {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-base);
+    position: relative;
+}
+
+/* Background Grid Pattern */
+.app-container::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-image:
+        linear-gradient(var(--border-subtle) 1px, transparent 1px),
+        linear-gradient(90deg, var(--border-subtle) 1px, transparent 1px);
+    background-size: 20px 20px;
+    opacity: 0.3;
+    pointer-events: none;
+    z-index: 0;
+}
+
+/* Header */
+.app-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-md) var(--spacing-md);
+    border-bottom: 1px solid var(--border-subtle);
+    background: var(--bg-elevated);
+    position: relative;
+    z-index: 10;
+}
+
+.header-left h1 {
+    font-size: 18px;
+    font-weight: normal;
+    letter-spacing: var(--letter-spacing-lg);
+    text-transform: uppercase;
+}
+
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+}
+
+.version-badge {
+    padding: 4px 12px;
+    border: 1px solid var(--border-active);
+    border-radius: 12px;
+    font-size: 10px;
+    letter-spacing: var(--letter-spacing-sm);
+    text-transform: uppercase;
+}
+
+.version-number {
+    font-size: 12px;
+    letter-spacing: var(--letter-spacing-sm);
+    color: var(--text-secondary);
+}
+
+/* Main Grid Layout */
+.main-grid {
+    display: grid;
+    grid-template-columns: 280px 1fr 280px;
+    gap: 0;
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+    z-index: 10;
+    pointer-events: none;
+    /* Allow clicks to pass through to map */
+}
+
+/* Panels */
+.panel {
+    background: var(--bg-panel);
+    border-right: 1px solid var(--border-subtle);
+    overflow-y: auto;
+    overflow-x: hidden;
+    pointer-events: auto;
+    /* Restore clicks for panels */
+}
+
+.panel:last-child {
+    border-right: none;
+}
+
+.left-panel,
+.right-panel {
+    padding: var(--spacing-md);
+    display: flex;
+    flex-direction: column;
+}
+
+.audio-section {
+    margin-top: auto;
+}
+
+.center-panel {
+    position: relative;
+    border-right: 1px solid var(--border-subtle);
+    border-left: 1px solid var(--border-subtle);
+    overflow: hidden;
+    background: transparent;
+    /* Transparent for map */
+    pointer-events: none;
+}
+
+/* Panel Headers */
+.panel-header {
+    padding: var(--spacing-sm) 0;
+    margin-bottom: var(--spacing-md);
+    border-bottom: 1px solid var(--border-medium);
+}
+
+.panel-title {
+    font-size: 11px;
+    letter-spacing: var(--letter-spacing-sm);
+    text-transform: uppercase;
+    color: var(--text-primary);
+}
+
+.panel-content {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-lg);
+}
+
+.view-panel .panel-content,
+.audio-section .panel-content {
+    margin-bottom: 0;
+}
+
+/* Map Container */
+.map-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+}
+
+#compass-ring {
+    width: 100%;
+    height: 100%;
+    border: 1px dashed var(--compass-primary);
+    border-radius: 50%;
+    position: absolute;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+    z-index: 10;
+    background: var(--compass-bg);
+}
+
+#compass-ring-inner {
+    width: 80%;
+    height: 80%;
+    border: 1px dashed var(--compass-secondary);
+    /* Dashed and muted for contrast */
+    border-radius: 50%;
+    position: absolute;
+    top: 10%;
+    /* Center it (100-80)/2 */
+    left: 10%;
+    pointer-events: none;
+    z-index: 5;
+}
+
+/* Scanner Crosshair */
+.scanner-crosshair {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 1;
+    /* Above map, below UI */
+}
+
+#compass-info {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 60;
+    font-family: var(--font-main);
+    font-size: 9px;
+    letter-spacing: var(--letter-spacing-sm);
+    color: var(--compass-primary);
+    text-shadow: 0 0 2px rgba(0, 0, 0, 0.3);
+    line-height: 1.2;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    /* Transform is managed by JS for counter-rotation */
+}
+
+.crosshair-h,
+.crosshair-v {
+    position: absolute;
+    opacity: 0.0;
+}
+
+.crosshair-h {
+    width: 100%;
+    height: 1px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: linear-gradient(90deg, transparent 0%, var(--accent) 50%, transparent 100%);
+}
+
+.crosshair-v {
+    width: 1px;
+    height: 100%;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: linear-gradient(180deg, transparent 0%, var(--accent) 50%, transparent 100%);
+}
+
+.crosshair-center {
+    display: none;
+}
+
+/* Status Display */
+.status-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.status-row label {
+    font-size: 10px;
+    letter-spacing: var(--letter-spacing-sm);
+    text-transform: uppercase;
+    color: var(--text-secondary);
+}
+
+.status-value {
+    font-size: 10px;
+    letter-spacing: var(--letter-spacing-sm);
+    color: var(--accent);
+    text-transform: uppercase;
+    font-weight: bold;
+}
+
+.meter-container {
+    flex: 1;
+    height: 4px;
+    background: var(--border-medium);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.meter-bar {
+    height: 100%;
+    background: var(--accent);
+    width: 0%;
+    transition: width 0.2s ease;
+}
+
+/* Control Rows */
+.control-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.control-row label,
+.control-group label {
+    font-size: 10px;
+    letter-spacing: var(--letter-spacing-sm);
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+}
+
+.control-wrapper {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    flex: 1;
+}
+
+.value-display {
+    font-size: 10px;
+    letter-spacing: var(--letter-spacing-sm);
+    color: var(--text-primary);
+    min-width: 50px;
+    text-align: right;
+}
+
+/* Form Controls */
+select {
+    background: transparent;
+    border: 1px solid var(--border-medium);
+    color: var(--text-primary);
+    padding: 6px 10px;
+    font-size: 10px;
+    letter-spacing: var(--letter-spacing-sm);
+    text-transform: uppercase;
+    font-family: var(--font-main);
+    cursor: pointer;
+    transition: border-color var(--transition-fast);
+    flex: 1;
+}
+
+select:hover {
+    border-color: var(--border-interactive);
+}
+
+select:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+/* Range Sliders */
+input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 2px;
+    background: var(--border-medium);
+    outline: none;
+    cursor: pointer;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 12px;
+    height: 12px;
+    background: var(--accent);
+    cursor: pointer;
+    border-radius: 50%;
+    transition: transform var(--transition-fast);
+}
+
+input[type="range"]::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    background: var(--accent);
+    cursor: pointer;
+    border: none;
+    border-radius: 50%;
+    transition: transform var(--transition-fast);
+}
+
+input[type="range"]:hover::-webkit-slider-thumb {
+    transform: scale(1.2);
+}
+
+input[type="range"]:hover::-moz-range-thumb {
+    transform: scale(1.2);
+}
+
+/* Toggle Switch */
+.toggle-wrapper {
+    position: relative;
+    width: 40px;
+    height: 20px;
+    cursor: pointer;
+    display: inline-block;
+}
+
+.toggle-wrapper.gray-outline {
+    border: 1px solid var(--border-medium);
+    border-radius: 10px;
+    transition: border-color var(--transition-fast);
+}
+
+.toggle-wrapper.gray-outline:hover {
+    border-color: var(--border-interactive);
+}
+
+.toggle-wrapper input[type="checkbox"] {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-indicator {
+    position: absolute;
+    top: 50%;
+    left: 3px;
+    transform: translateY(-50%);
+    width: 12px;
+    height: 12px;
+    background: var(--text-muted);
+    border-radius: 50%;
+    transition: all var(--transition-fast);
+}
+
+.toggle-wrapper input[type="checkbox"]:checked+.toggle-indicator {
+    left: calc(100% - 15px);
+    background: var(--accent);
+}
+
+/* Buttons */
+button {
+    background: transparent;
+    border: 1px solid var(--border-medium);
+    color: var(--text-primary);
+    padding: 8px 16px;
+    font-size: 10px;
+    letter-spacing: var(--letter-spacing-sm);
+    text-transform: uppercase;
+    font-family: var(--font-main);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+button:hover {
+    border-color: var(--accent);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+/* Play Button Highlight */
+@keyframes pulse-border {
+    0% {
+        border-color: var(--border-medium);
+        box-shadow: 0 0 0 rgba(255, 255, 255, 0);
+    }
+
+    50% {
+        border-color: var(--accent);
+        box-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
+    }
+
+    100% {
+        border-color: var(--border-medium);
+        box-shadow: 0 0 0 rgba(255, 255, 255, 0);
+    }
+}
+
+.highlight-pulse {
+    animation: pulse-border 2s infinite;
+}
+
+/* Bird Watcher UI */
+#now-playing-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    gap: 8px;
+    min-height: 100px;
+}
+
+.bird-card {
+    background: transparent;
+    border: 1px solid var(--text-muted);
+    border-radius: 0;
+    padding: 6px 8px;
+    font-size: 11px;
+    font-style: italic;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--text-muted);
+
+    /* Layout & Transition Props */
+    max-height: 100px;
+    opacity: 0;
+    /* Start hidden for fade-in */
+    margin-bottom: 0;
+    overflow: hidden;
+
+    /* Entry Animation */
+    animation: fadeIn 0.5s ease-out forwards;
+
+    /* Removal Transition */
+    transition: all 0.5s ease;
+}
+
+.bird-card.removing {
+    animation: none !important;
+    /* Stop entry animation so transition takes over */
+    opacity: 0;
+    max-height: 0;
+    margin-bottom: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    border-color: transparent;
+    /* Fade border color instead of removing it */
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes slideOut {
+    to {
+        opacity: 0;
+        transform: translateX(20px);
+    }
+}
+
+/* Panel Stacking */
+.left-column {
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--border-subtle);
+    background: var(--bg-panel);
+}
+
+.left-panel {
+    border-right: none;
+    border-bottom: none;
+    /* flex: 1; Removed to allow custom sizing */
+}
+
+.nav-panel {
+    flex: 1;
+    /* This one grows to push the bottom panel down */
+}
+
+.discovery-panel {
+    top: auto;
+    /* Reset */
+    border-bottom: none;
+}
+
+button:active {
+    transform: scale(0.98);
+}
+
+.btn-transport {
+    flex: 1;
+}
+
+.transport-controls {
+    display: flex;
+    gap: var(--spacing-sm);
+}
+
+/* Footer */
+.app-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-md) var(--spacing-md);
+    border-top: 1px solid var(--border-subtle);
+    background: var(--bg-elevated);
+    position: relative;
+    z-index: 10;
+}
+
+.footer-left {
+    display: flex;
+    align-items: center;
+}
+
+.badge-box {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+}
+
+.badge-text {
+    font-size: 11px;
+    letter-spacing: var(--letter-spacing-sm);
+    text-transform: uppercase;
+}
+
+.footer-links {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    font-size: 9px;
+    letter-spacing: var(--letter-spacing-sm);
+}
+
+.footer-links a {
+    color: var(--text-secondary);
+    text-decoration: none;
+    transition: color var(--transition-fast);
+}
+
+.footer-links a:hover {
+    color: var(--accent);
+}
+
+.separator {
+    color: var(--text-muted);
+}
+
+.credits-text {
+    text-align: right;
+    font-size: 9px;
+    letter-spacing: var(--letter-spacing-sm);
+    color: var(--text-muted);
+    line-height: 1.4;
+}
+
+.sub-credit {
+    font-size: 8px;
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+    width: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--bg-panel);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--border-medium);
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--border-interactive);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .main-grid {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto 1fr auto;
+    }
+
+    .panel {
+        border-right: none;
+        border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .center-panel {
+        border-left: none;
+        border-right: none;
+        order: 1;
+    }
+
+    .left-panel {
+        order: 0;
+        max-height: 300px;
+    }
+
+    .right-panel {
+        order: 2;
+        max-height: 300px;
+    }
+
+    .app-header,
+    .app-footer {
+        padding: var(--spacing-sm) var(--spacing-md);
+    }
+
+    .footer-links {
+        flex-direction: column;
+        gap: 2px;
+    }
+
+    .separator {
+        display: none;
+    }
+
+    /* Mapbox Overrides */
+    .mapboxgl-control-container {
+        display: none !important;
+    }
+
+    /* Fix Mobile Viewport Height */
+    html,
+    body {
+        height: 100dvh;
+    }
+
+    /* Mobile Hiding */
+    .nav-panel,
+    .view-panel,
+    .footer-links,
+    .right-panel .panel-section:first-child {
+        display: none !important;
+    }
+
+    /* Adjust Right Panel to only show Audio */
+    .right-panel {
+        max-height: auto;
+        border-top: none;
+    }
+
+    /* Center Compass in Visible Map Area (Offset for Bottom Panel) */
+    #compass-container {
+        top: 38% !important;
+    }
+}
+
+/* Offset controls to avoid UI overlap */
+.mapboxgl-ctrl-top-right {
+    margin-top: 60px;
+    /* Header height approx */
+    margin-right: 280px;
+    /* Right panel width */
+}
+
+.mapboxgl-canvas {
+    cursor: crosshair !important;
+}
+
+/* Mapbox Control Customization */
+.mapboxgl-ctrl-group {
+    background-color: #000 !important;
+    /* Dark background */
+    border-radius: 0 !important;
+    /* Square corners */
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    box-shadow: none !important;
+}
+
+.mapboxgl-ctrl-group button {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2) !important;
+}
+
+.mapboxgl-ctrl-group button:last-child {
+    border-bottom: none !important;
+}
+
+.mapboxgl-ctrl-icon {
+    filter: invert(1) !important;
+    /* Make icons white */
+}
+
+/* Ensure hover state is visible */
+.mapboxgl-ctrl-group button:hover {
+    background-color: var(--panel-bg-hover) !important;
+}
+
+/* Zen Mode */
+.app-header,
+.app-footer,
+.left-column,
+.right-panel,
+.mapboxgl-control-container {
+    transition: opacity 0.5s ease, visibility 0.5s ease;
+}
+
+body.zen-mode .app-header,
+body.zen-mode .app-footer,
+body.zen-mode .left-column,
+body.zen-mode .right-panel,
+body.zen-mode .mapboxgl-control-container {
+    opacity: 0 !important;
+    pointer-events: none !important;
+    visibility: hidden;
+}
+
+/* In Zen Mode, center panel border is gone */
+body.zen-mode .center-panel {
+    border: none;
+}
+
+#zen-overlay {
+    background: rgba(0, 0, 0, 0.8);
+    pointer-events: none;
+    /* Base state (Visible): Immediate visibility, fade in opacity */
+    opacity: 1;
+    visibility: visible;
+    transition: opacity 1s ease, visibility 0s linear 0s;
+}
+
+#zen-overlay.hidden {
+    /* Hidden state: Fade out opacity, then hide visibility */
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 1s ease, visibility 0s linear 1s;
+}
+
+.esc-key {
+    border: 1px solid var(--text-primary);
+    padding: 2px 6px;
+    border-radius: 0;
+    font-size: 12px;
+    color: var(--text-primary);
+    margin: 0 4px;
+}
+
+/* Compass HUD */
+#compass-container {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 100px;
+    height: 100px;
+    pointer-events: none;
+    z-index: 100;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+#compass-ring {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border: 1px solid var(--accent);
+    border-radius: 50%;
+    /* Removed box-shadow */
+}
+
+#compass-ring::after {
+    content: 'N';
+    position: absolute;
+    top: -20px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: auto;
+    height: auto;
+    border: none;
+    background: transparent;
+    color: var(--accent);
+    font-size: 10px;
+    font-weight: bold;
+    text-shadow: 0 0 4px rgba(0, 0, 0, 0.3);
+}
+
+#compass-flight-arrow {
+    position: absolute;
+    bottom: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    /* Equilateral Triangle Logic */
+    /* Side length s. Height h = s * sqrt(3)/2 */
+    /* If border-left/right is x, base is 2x. Height is border-bottom. */
+    /* For equilateral, border-bottom = x * sqrt(3) */
+    /* Let's say half-base (x) is 4px. Base is 8px. Height should be ~6.9px */
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-bottom: 7px solid var(--text-primary);
+    /* White arrow */
+
+    transform-origin: bottom center;
+    margin-left: -4px;
+    /* Center horizontally (half of base) */
+
+    /* Remove transition for rotation to let JS Lerp handle smoothing without fighting */
+    /* transition: transform 0.1s linear; */
+    pointer-events: none;
+    z-index: 50;
+    /* Above markers, below ring? */
+}
+
+#compass-markers {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+}
+
+.compass-marker {
+    position: absolute;
+    bottom: 50%;
+    left: 50%;
+    width: 1px;
+    height: 12px;
+    /* Longer to stick out */
+    background: var(--text-primary);
+    transform-origin: bottom center;
+    /* Half of container width */
+    margin-left: -0.5px;
+    /* Center horizontally */
+    border-radius: 2px;
+    /* Removed box-shadow */
+    transition: opacity 0.5s, transform 0.1s;
+}
