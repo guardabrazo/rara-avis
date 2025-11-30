@@ -21,7 +21,7 @@ export class Director {
 
         this.samplePool = []; // Birds
         this.fieldPool = [];  // Field Recordings
-        this.maxPoolSize = 100;
+        this.maxPoolSize = 300;
 
         this.birdsVolume = 0.7;
         this.fieldVolume = 0.5;
@@ -37,7 +37,7 @@ export class Director {
         this.lastFetchTime = 0;
         this.fetchInterval = 30000; // 30 seconds
         this.fetchDistance = 0.02; // ~2km degrees
-        this.searchRadius = 10; // km
+        this.searchRadius = 30; // km
 
         // Wire UI events
         if (this.uiManager) {

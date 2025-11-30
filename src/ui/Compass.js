@@ -118,11 +118,12 @@ export class Compass {
             }
             marker.style.display = 'block';
 
-            // Calculate Relative Bearing
+            // Calculate Relative Bearing & Distance
             // 1. Absolute Bearing from Center to Target
             const start = turf.point([center.lng, center.lat]);
             const end = turf.point([sample.lng, sample.lat]);
             const targetBearing = turf.bearing(start, end);
+            const distanceKm = turf.distance(start, end);
 
             // 2. Relative to Camera
             // If camera is facing North (0), target at East (90) -> Relative 90
@@ -167,6 +168,12 @@ export class Compass {
             const isActive = playingIds.includes(sample.id);
             const amp = amplitudes[sample.id] || 0;
 
+            // Reset dying state if it was dying but came back
+            if (markerData.dying) {
+                markerData.dying = false;
+                markerData.element.style.transition = 'opacity 0.5s, transform 0.1s'; // Restore transition
+            }
+
             if (isActive) {
                 marker.style.opacity = 1;
                 // Ensure min height for visibility even if quiet
@@ -176,21 +183,45 @@ export class Compass {
                 marker.style.width = '1px'; // Back to 1px
                 marker.style.borderRadius = '0'; // Ensure straight ends
             } else {
-                // Non-playing markers: White, half size
-                marker.style.opacity = 0.5;
-                marker.style.height = '6px'; // Half of base active size (12px)
-                marker.style.background = 'var(--accent)'; // White
+                // Non-playing markers: Scaled by distance
+                // Max visual distance ~50km (matches new search radius + buffer)
+                const maxDist = 50;
+
+                // Non-linear scaling for more drama (Square root makes falloff gentler at start, then steeper? No, Power 2 makes it drop fast)
+                // Let's use a simple linear but with a wider range and a minimum.
+                const distFactor = Math.max(0.0, 1 - (distanceKm / maxDist));
+
+                // Scale height from 1px to 16px based on distance (Squared for drama)
+                // Closer (factor 1) -> 16px
+                // Further (factor 0) -> 1px
+                const h = 1 + (15 * (distFactor * distFactor));
+
+                marker.style.opacity = 0.2 + (0.6 * distFactor); // 0.2 to 0.8 opacity
+                marker.style.height = `${h}px`;
+                marker.style.background = 'var(--accent)';
                 marker.style.zIndex = '1';
                 marker.style.width = '1px';
             }
         });
 
-        // Cleanup removed samples
+        // Cleanup removed samples (Graceful Exit)
+        const now = Date.now();
         this.markers.forEach((markerData, id) => {
             const stillExists = samples.some(s => s.id === id);
+
             if (!stillExists) {
-                markerData.element.remove();
-                this.markers.delete(id);
+                if (!markerData.dying) {
+                    // Start dying
+                    markerData.dying = true;
+                    markerData.deathTime = now;
+                    markerData.element.style.opacity = '0'; // Trigger fade out
+                } else {
+                    // Already dying, check if time to remove
+                    if (now - markerData.deathTime > 500) { // 500ms matches CSS transition
+                        markerData.element.remove();
+                        this.markers.delete(id);
+                    }
+                }
             }
         });
     }
