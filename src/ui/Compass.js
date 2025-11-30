@@ -58,7 +58,7 @@ export class Compass {
             infoEl.innerHTML = `
                 <div>${info.lat.toFixed(2)}º</div>
                 <div>${info.lng.toFixed(2)}º</div>
-                <div>↑ ${Math.round(info.elevation)}m</div>
+                <div>▵ ${Math.round(info.elevation)}m</div>
             `;
             // Counter-rotate text so it stays upright? 
             // User said "The text should rotate with the compass"
