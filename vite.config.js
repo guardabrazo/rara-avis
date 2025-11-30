@@ -10,7 +10,7 @@ export default defineConfig({
                 rewrite: (path) => path.replace(/^\/api\/xeno-canto/, ''),
             },
             '/proxy-audio': {
-                target: 'https://xeno-canto.org',
+                target: 'api/3',
                 changeOrigin: true,
                 rewrite: (path) => path.replace(/^\/proxy-audio/, ''),
             },

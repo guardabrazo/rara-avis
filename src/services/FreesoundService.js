@@ -1,7 +1,7 @@
 export class FreesoundService {
     constructor() {
         this.baseUrl = '/api/freesound';
-        this.apiKey = 'Je0Q2ni2QAW0I9hc48Au1vc06R7DPY0AEbDStv6Y';
+        this.apiKey = import.meta.env.VITE_FREESOUND_KEY;
     }
 
     async fetchSamples(lat, lon, radiusKm = 50) {

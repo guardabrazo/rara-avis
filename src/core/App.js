@@ -4,7 +4,7 @@ import { UIManager } from '../ui/UIManager';
 import { Director } from '../logic/Director';
 import { ConstellationLayer } from '../vis/ConstellationLayer';
 
-const MAPBOX_TOKEN = 'pk.eyJ1IjoiZ3VhcmRhYnJhem8iLCJhIjoiY21pZThlbmh0MDAyYTNkcGJyaGkyN2R5ciJ9.Dd8i_vsm9mo27TLdZ1NSXA';
+const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
 export class App {
     constructor() {
