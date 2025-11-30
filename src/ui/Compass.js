@@ -2,43 +2,75 @@ import * as turf from '@turf/turf';
 
 export class Compass {
     constructor() {
-        this.container = document.getElementById('compass-markers');
         this.parentContainer = document.getElementById('compass-container');
-        this.markers = new Map(); // id -> { element, currentRotation }
+        this.container = document.getElementById('compass-markers'); // We'll clear this and put a canvas in it
+
+        // Canvas Setup
+        this.canvas = document.createElement('canvas');
+        this.canvas.style.position = 'absolute';
+        // Make canvas larger than container to avoid cropping markers
+        this.canvas.style.top = '-50%';
+        this.canvas.style.left = '-50%';
+        this.canvas.style.width = '200%';
+        this.canvas.style.height = '200%';
+        this.canvas.style.pointerEvents = 'none';
+
+        // Clear existing DOM markers if any
+        if (this.container) {
+            this.container.innerHTML = '';
+            this.container.appendChild(this.canvas);
+        }
+
+        this.ctx = this.canvas.getContext('2d');
+
+        // State Tracking for Animations
+        this.markerStates = new Map(); // id -> { currentRotation, currentHeight, currentOpacity, dying, deathTime }
+        this.currentFlightRotation = 0;
+    }
+
+    resizeCanvas() {
+        if (!this.container || !this.canvas) return;
+
+        // Use offsetWidth/Height to get the layout size (untransformed)
+        // getBoundingClientRect() gives the transformed size, which causes double-squashing
+        const width = this.container.offsetWidth;
+        const height = this.container.offsetHeight;
+        const dpr = window.devicePixelRatio || 1;
+
+        // Canvas is 200% of container
+        const targetWidth = width * 2;
+        const targetHeight = height * 2;
+
+        // Only resize if dimensions changed
+        if (this.canvas.width !== targetWidth * dpr || this.canvas.height !== targetHeight * dpr) {
+            this.canvas.width = targetWidth * dpr;
+            this.canvas.height = targetHeight * dpr;
+            this.ctx.scale(dpr, dpr);
+        }
+
+        return { width: targetWidth, height: targetHeight };
     }
 
     update(map, samples, amplitudes, playingIds = [], flightBearing = 0, pitch = 0, info = null) {
         if (!map || !this.container || !this.parentContainer) return;
 
-        this.parentContainer.style.display = 'flex'; // Ensure visible
+        this.parentContainer.style.display = 'flex';
 
         const center = map.getCenter();
-        const bearing = map.getBearing(); // Camera bearing (0 = North, 90 = East)
+        const bearing = map.getBearing();
 
-        // 0. 3D Rotation
-        // User wants EVERYTHING to rotate/tilt with the map.
-        // And scale up significantly to maintain visibility/effect.
-        // CLAMPED to 75 degrees to prevent it from becoming too flat/invisible.
+        // 0. 3D Rotation (Container Transform)
         const clampedPitch = Math.min(pitch, 70);
         const scale = 1 + (clampedPitch / 60) * 0.30;
-
         this.parentContainer.style.transform = `translate(-50%, -50%) rotateX(${clampedPitch}deg) scale(${scale})`;
         this.parentContainer.style.transformStyle = 'preserve-3d';
-
-        // Inner Container follows parent
-        this.container.style.transform = '';
         this.container.style.transformStyle = 'preserve-3d';
 
-
-        // 1. Rotate Compass Ring (North Arrow) - OUTER (2D)
-        // The ring itself should rotate opposite to the camera bearing so "North" stays North.
+        // 1. Rotate Compass Ring (DOM)
         const ring = document.getElementById('compass-ring');
-        if (ring) {
-            ring.style.transform = `rotate(${-bearing}deg)`;
-        }
+        if (ring) ring.style.transform = `rotate(${-bearing}deg)`;
 
-        // 1.5 Inner Ring (3D)
-        // This one is inside this.container, so it tilts. We just need to rotate it to match bearing.
+        // 1.5 Inner Ring (DOM)
         let innerRing = document.getElementById('compass-ring-inner');
         if (!innerRing) {
             innerRing = document.createElement('div');
@@ -47,7 +79,7 @@ export class Compass {
         }
         innerRing.style.transform = `rotate(${-bearing}deg)`;
 
-        // 1.5 Info Text
+        // 1.5 Info Text (DOM)
         let infoEl = document.getElementById('compass-info');
         if (!infoEl) {
             infoEl = document.createElement('div');
@@ -60,170 +92,156 @@ export class Compass {
                 <div>${info.lng.toFixed(2)}º</div>
                 <div>▵ ${Math.round(info.elevation)}m</div>
             `;
-            // Counter-rotate text so it stays upright? 
-            // User said "The text should rotate with the compass"
-            // So we REMOVE the counter-rotation.
-            // infoEl.style.transform = `rotateX(${-pitch}deg)`;
-            infoEl.style.transform = ''; // Reset
+            infoEl.style.transform = '';
         }
 
-
-        // 2. Flight Direction Arrow
+        // 2. Flight Direction Arrow (DOM - kept for simplicity as it's just one element)
         let flightArrow = document.getElementById('compass-flight-arrow');
         if (!flightArrow) {
             flightArrow = document.createElement('div');
             flightArrow.id = 'compass-flight-arrow';
             this.container.appendChild(flightArrow);
-            this.currentFlightRotation = 0; // State for smoothing
         }
 
-        // Calculate target rotation relative to camera
         const targetFlightRotation = flightBearing - bearing;
-
-        // Shortest path smoothing
         let currentFlight = this.currentFlightRotation || 0;
         let diffFlight = targetFlightRotation - currentFlight;
         while (diffFlight < -180) diffFlight += 360;
         while (diffFlight > 180) diffFlight -= 360;
-
-        // Apply Lerp for smoother movement
-        // Factor 0.05 for very smooth, 0.1 for responsive
-        const lerpFactor = 0.05;
-        this.currentFlightRotation = currentFlight + (diffFlight * lerpFactor);
-
-        // Offset -65px to be outside the ring (markers are at -50px)
-        flightArrow.style.transform = `rotate(${this.currentFlightRotation}deg) translateY(-60px)`;
+        this.currentFlightRotation = currentFlight + (diffFlight * 0.05);
+        flightArrow.style.transform = `rotate(${this.currentFlightRotation}deg) translateY(-65px)`;
 
 
-        // 3. Sync Markers
+        // 3. CANVAS RENDERING FOR MARKERS
+        const { width, height } = this.resizeCanvas();
+        const cx = width / 2;
+        const cy = height / 2;
+        const radius = 50; // Fixed radius matching CSS translateY(-50px)
+
+        this.ctx.clearRect(0, 0, width, height);
+
+        // Update & Draw Markers
+        const now = Date.now();
+        const activeIds = new Set(playingIds);
+        const sampleIds = new Set(samples.map(s => s.id));
+
+        // Process all samples
         samples.forEach(sample => {
-            let markerData = this.markers.get(sample.id);
-
-            // Create if new
-            if (!markerData) {
-                const element = document.createElement('div');
-                element.className = 'compass-marker';
-                this.container.appendChild(element);
-                markerData = { element, currentRotation: 0 };
-                this.markers.set(sample.id, markerData);
+            let state = this.markerStates.get(sample.id);
+            if (!state) {
+                state = {
+                    currentRotation: 0,
+                    currentHeight: 0,
+                    currentOpacity: 0,
+                    dying: false,
+                    deathTime: 0
+                };
+                this.markerStates.set(sample.id, state);
             }
 
-            const marker = markerData.element;
-
-            // Validate Coordinates
-            if (typeof sample.lat !== 'number' || typeof sample.lng !== 'number') {
-                // Hide if no coords
-                marker.style.display = 'none';
-                return;
+            // Revive if needed
+            if (state.dying) {
+                state.dying = false;
             }
-            marker.style.display = 'block';
 
-            // Calculate Relative Bearing & Distance
-            // 1. Absolute Bearing from Center to Target
+            // Calculate Target Rotation
+            if (typeof sample.lat !== 'number' || typeof sample.lng !== 'number') return;
+
             const start = turf.point([center.lng, center.lat]);
             const end = turf.point([sample.lng, sample.lat]);
             const targetBearing = turf.bearing(start, end);
             const distanceKm = turf.distance(start, end);
 
-            // 2. Relative to Camera
-            // If camera is facing North (0), target at East (90) -> Relative 90
-            // If camera is facing East (90), target at East (90) -> Relative 0
             let relativeBearing = targetBearing - bearing;
 
-            // Spread out overlapping lines (Deterministic Jitter based on ID)
-            // Simple hash of ID to get a value between -2.5 and 2.5 degrees
+            // Jitter
             const hash = sample.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
             const offset = (hash % 10 - 5) * 0.5;
             relativeBearing += offset;
 
-            // 3. Continuous Rotation Logic (Shortest Path)
-            // Normalize relativeBearing to -180 to 180
-            // But we want to find the closest rotation to currentRotation
-
-            // First, get the target rotation in 0-360 space or -180-180 space?
-            // Let's just work with the difference.
-
-            let currentRotation = markerData.currentRotation;
-
-            // Calculate the difference between target and current
-            let diff = relativeBearing - currentRotation;
-
-            // Normalize diff to -180 to 180 to find shortest path
+            // Smooth Rotation - REMOVED SMOOTHING to fix alignment lag
+            let diff = relativeBearing - state.currentRotation;
             while (diff < -180) diff += 360;
             while (diff > 180) diff -= 360;
+            state.currentRotation += diff; // Instant update
 
-            // Apply the shortest difference
-            let newRotation = currentRotation + diff;
-
-            markerData.currentRotation = newRotation;
-
-            // Update Transform
-            // Rotate around center, then push out to radius (50px)
-            // Since transform-origin is bottom center, and we translate Y negative (up),
-            // it pushes the marker out from the center to the ring.
-            marker.style.transform = `rotate(${newRotation}deg) translateY(-50px)`;
-
-            // Update Visuals (Active vs Inactive)
-            // Use playingIds for truth
-            const isActive = playingIds.includes(sample.id);
+            // Calculate Target Visuals
+            const isActive = activeIds.has(sample.id);
             const amp = amplitudes[sample.id] || 0;
 
-            // Reset dying state if it was dying but came back
-            if (markerData.dying) {
-                markerData.dying = false;
-                markerData.element.style.transition = 'opacity 0.5s, transform 0.1s'; // Restore transition
-            }
+            let targetHeight, targetOpacity, targetWidth, targetColor;
 
             if (isActive) {
-                marker.style.opacity = 1;
-                // Ensure min height for visibility even if quiet
-                marker.style.height = `${12 + (amp * 200)}px`;
-                marker.style.background = 'var(--accent)';
-                marker.style.zIndex = '10';
-                marker.style.width = '1px'; // Back to 1px
-                marker.style.borderRadius = '0'; // Ensure straight ends
+                targetHeight = 12 + (amp * 200);
+                targetOpacity = 1;
+                targetWidth = 1.5; // Slightly thicker for active
+                targetColor = '#ffffff'; // var(--accent)
             } else {
-                // Non-playing markers: Scaled by distance
-                // Max visual distance ~50km (matches new search radius + buffer)
                 const maxDist = 50;
-
-                // Non-linear scaling for more drama (Square root makes falloff gentler at start, then steeper? No, Power 2 makes it drop fast)
-                // Let's use a simple linear but with a wider range and a minimum.
                 const distFactor = Math.max(0.0, 1 - (distanceKm / maxDist));
-
-                // Scale height from 1px to 16px based on distance (Squared for drama)
-                // Closer (factor 1) -> 16px
-                // Further (factor 0) -> 1px
-                const h = 1 + (15 * (distFactor * distFactor));
-
-                marker.style.opacity = 0.2 + (0.6 * distFactor); // 0.2 to 0.8 opacity
-                marker.style.height = `${h}px`;
-                marker.style.background = 'var(--accent)';
-                marker.style.zIndex = '1';
-                marker.style.width = '1px';
+                targetHeight = 1 + (15 * (distFactor * distFactor));
+                targetOpacity = 0.2 + (0.6 * distFactor);
+                targetWidth = 1;
+                targetColor = '#ffffff';
             }
+
+            // Smooth Visuals
+            state.currentHeight += (targetHeight - state.currentHeight) * 0.1;
+            state.currentOpacity += (targetOpacity - state.currentOpacity) * 0.1;
+
+            // Draw
+            this.drawMarker(cx, cy, radius, state.currentRotation, state.currentHeight, state.currentOpacity, targetWidth, targetColor);
         });
 
-        // Cleanup removed samples (Graceful Exit)
-        const now = Date.now();
-        this.markers.forEach((markerData, id) => {
-            const stillExists = samples.some(s => s.id === id);
+        // Process Dying Markers
+        this.markerStates.forEach((state, id) => {
+            if (!sampleIds.has(id)) {
+                if (!state.dying) {
+                    state.dying = true;
+                    state.deathTime = now;
+                }
 
-            if (!stillExists) {
-                if (!markerData.dying) {
-                    // Start dying
-                    markerData.dying = true;
-                    markerData.deathTime = now;
-                    markerData.element.style.opacity = '0'; // Trigger fade out
+                // Fade out
+                const timeSinceDeath = now - state.deathTime;
+                if (timeSinceDeath > 500) {
+                    this.markerStates.delete(id);
                 } else {
-                    // Already dying, check if time to remove
-                    if (now - markerData.deathTime > 500) { // 500ms matches CSS transition
-                        markerData.element.remove();
-                        this.markers.delete(id);
-                    }
+                    // Fade opacity
+                    const fadeProgress = timeSinceDeath / 500;
+                    const fadeOpacity = state.currentOpacity * (1 - fadeProgress);
+
+                    // Keep rotating with last known rotation (or just stop? let's stop updating rotation)
+                    this.drawMarker(cx, cy, radius, state.currentRotation, state.currentHeight, fadeOpacity, 1, '#ffffff');
                 }
             }
         });
+    }
+
+    drawMarker(cx, cy, radius, rotationDeg, height, opacity, width, color) {
+        if (opacity <= 0.01) return;
+
+        this.ctx.save();
+
+        // Translate to center
+        this.ctx.translate(cx, cy);
+
+        // Rotate
+        this.ctx.rotate((rotationDeg * Math.PI) / 180);
+
+        // Translate to radius (negative Y to go up)
+        this.ctx.translate(0, -radius);
+
+        // Draw Line (centered on 0,0 relative to the translation)
+        // Since we want it to grow OUTWARDS from the ring, and we are at -radius (the ring edge),
+        // we should draw from 0 to -height (upwards/outwards).
+
+        this.ctx.globalAlpha = opacity;
+        this.ctx.fillStyle = color;
+
+        // Draw Rect for better sharpness than line
+        this.ctx.fillRect(-width / 2, -height, width, height);
+
+        this.ctx.restore();
     }
 
     hide() {
