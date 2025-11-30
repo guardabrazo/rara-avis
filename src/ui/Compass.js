@@ -129,6 +129,12 @@ export class Compass {
             // If camera is facing East (90), target at East (90) -> Relative 0
             let relativeBearing = targetBearing - bearing;
 
+            // Spread out overlapping lines (Deterministic Jitter based on ID)
+            // Simple hash of ID to get a value between -2.5 and 2.5 degrees
+            const hash = sample.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+            const offset = (hash % 10 - 5) * 0.5;
+            relativeBearing += offset;
+
             // 3. Continuous Rotation Logic (Shortest Path)
             // Normalize relativeBearing to -180 to 180
             // But we want to find the closest rotation to currentRotation

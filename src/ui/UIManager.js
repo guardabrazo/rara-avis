@@ -17,6 +17,7 @@ export class UIManager {
     cacheElements() {
         this.elements = {
             initOverlay: document.getElementById('init-overlay'), // This might be unused now, but keeping for safety
+            startOverlay: document.getElementById('start-overlay'),
             playBtn: document.getElementById('play-btn'),
             stopBtn: document.getElementById('stop-btn'),
             flySpeedInput: document.getElementById('fly-speed'),
@@ -62,9 +63,15 @@ export class UIManager {
 
     setupEventListeners() {
         const {
-            initOverlay, playBtn, stopBtn, flySpeedInput,
+            initOverlay, startOverlay, playBtn, stopBtn, flySpeedInput,
             mapStyleInput, volumeInput, manualModeToggle, raindropBtn
         } = this.elements;
+
+        if (startOverlay) {
+            const hide = () => this.hideOverlay();
+            startOverlay.addEventListener('click', hide);
+            startOverlay.addEventListener('touchstart', hide);
+        }
 
         if (playBtn) {
             playBtn.addEventListener('click', () => {
@@ -195,6 +202,7 @@ export class UIManager {
 
     hideOverlay() {
         if (this.elements.initOverlay) this.elements.initOverlay.classList.add('hidden');
+        if (this.elements.startOverlay) this.elements.startOverlay.classList.add('hidden');
     }
 
     addPlayingSample(sample) {

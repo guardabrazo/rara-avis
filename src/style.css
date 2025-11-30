@@ -900,9 +900,7 @@ button:active {
     }
 
     .credits-text {
-        display: block;
-        text-align: center;
-        margin-top: 4px;
+        display: none;
     }
 
     .app-footer {
@@ -955,6 +953,12 @@ button:active {
     /* Center Compass in Visible Map Area (Offset for Bottom Panel) */
     #compass-container {
         top: 50% !important;
+    }
+
+    /* Ensure Start Overlay is Flex (Centered) not Block */
+    #start-overlay {
+        display: flex !important;
+        background: rgba(0, 0, 0, 0.8) !important;
     }
 }
 
