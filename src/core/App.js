@@ -2,7 +2,6 @@ import * as Tone from 'tone';
 import { MapManager } from '../map/MapManager';
 import { UIManager } from '../ui/UIManager';
 import { Director } from '../logic/Director';
-import { ConstellationLayer } from '../vis/ConstellationLayer';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
@@ -10,8 +9,8 @@ export class App {
     constructor() {
         this.mapManager = new MapManager(MAPBOX_TOKEN);
         this.uiManager = new UIManager();
-        this.visLayer = new ConstellationLayer();
-        this.director = new Director(this.mapManager, this.uiManager, this.visLayer);
+        // this.visLayer = new ConstellationLayer(); // Removed
+        this.director = new Director(this.mapManager, this.uiManager);
         this.animationFrameId = null;
     }
 
@@ -22,7 +21,7 @@ export class App {
 
         // 2. Init Map
         await this.mapManager.init('map');
-        this.mapManager.addCustomLayer(this.visLayer);
+        // this.mapManager.addCustomLayer(this.visLayer); // Removed
 
         // 3. Silent Start (Load Audio Buffers & Start Logic)
         try {

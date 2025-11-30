@@ -6,10 +6,10 @@ import { SamplePlayer } from '../audio/SamplePlayer';
 import { Compass } from '../ui/Compass';
 
 export class Director {
-    constructor(mapManager, uiManager, visLayer) {
+    constructor(mapManager, uiManager) {
         this.mapManager = mapManager;
         this.uiManager = uiManager;
-        this.visLayer = visLayer;
+        // this.visLayer = visLayer; // Removed
         this.compass = new Compass();
         this.wanderer = new Wanderer(mapManager);
         this.xcService = new XenoCantoService();
@@ -107,9 +107,9 @@ export class Director {
         this.wanderer.update(mapData.type);
 
         // Update Visualization Amplitudes
-        if (this.visLayer && this.player) {
+        if (this.player) {
             const amps = this.player.getAmplitudes();
-            this.visLayer.updateAmplitudes(amps);
+            // this.visLayer.updateAmplitudes(amps); // Removed
 
             // Update Compass
             // Pass ALL samples to the compass, not just active ones
@@ -250,14 +250,14 @@ export class Director {
                     volume,
                     onEnded: () => {
                         if (this.uiManager) this.uiManager.removePlayingSample(sample.id);
-                        if (this.visLayer) this.visLayer.removeNode(sample.id);
+                        // if (this.visLayer) this.visLayer.removeNode(sample.id); // Removed
                     }
                 });
 
                 // Add Visual Node
-                if (this.visLayer && sample.lat && sample.lng) {
-                    this.visLayer.addNode(sample.id, sample.lat, sample.lng, sample.name);
-                }
+                // if (this.visLayer && sample.lat && sample.lng) {
+                //     this.visLayer.addNode(sample.id, sample.lat, sample.lng, sample.name);
+                // }
             }
         }
 

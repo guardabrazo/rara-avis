@@ -11,7 +11,7 @@ export class XenoCantoService {
 
         let currentRadius = radiusKm;
         const maxRadius = 500; // Max expansion
-        const attempts = 10; // Increased to ensure we can reach 500km (20 -> 40 -> 80 -> 160 -> 320 -> 500)
+        const attempts = 10;
 
         for (let i = 0; i < attempts; i++) {
             // console.log(`Fetching Xeno-canto (Attempt ${i + 1}/${attempts}): Radius ${currentRadius}km`);
@@ -26,55 +26,50 @@ export class XenoCantoService {
             let url;
             if (import.meta.env.PROD) {
                 // Production: Use CORS Proxy with API v3
-                // API v3 REQUIRES the 'key' parameter
                 const targetUrl = `https://www.xeno-canto.org/api/3/recordings?query=${encodeURIComponent(query)}&key=${apiKey}`;
                 url = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
             } else {
-                // Development: Use local proxy (mapped to v3 in vite.config.js)
+                // Development: Use local proxy
                 url = `${this.baseUrl}?query=${encodeURIComponent(query)}&key=${apiKey}`;
             }
-            // Development: Use local proxy
-            url = `${this.baseUrl}?query=${encodeURIComponent(query)}&key=${apiKey}`;
-        }
 
-        try {
-            const response = await fetch(url); Also
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            try {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
-            const text = await response.text();
-            const data = JSON.parse(text);
-            const recordings = data.recordings || [];
+                const text = await response.text();
+                const data = JSON.parse(text);
+                const recordings = data.recordings || [];
 
-            if (recordings.length > 0) {
-                // Parse coordinates and filter invalid ones
-                const validRecordings = recordings.map(r => ({
-                    ...r,
-                    lat: parseFloat(r.lat),
-                    lng: parseFloat(r.lon) // Xeno-canto uses 'lon'
-                })).filter(r => {
-                    const valid = !isNaN(r.lat) && !isNaN(r.lng);
-                    if (!valid) console.warn('Invalid coords for recording:', r.id, r.lat, r.lon);
-                    return valid;
-                });
+                if (recordings.length > 0) {
+                    // Parse coordinates and filter invalid ones
+                    const validRecordings = recordings.map(r => ({
+                        ...r,
+                        lat: parseFloat(r.lat),
+                        lng: parseFloat(r.lon) // Xeno-canto uses 'lon'
+                    })).filter(r => {
+                        const valid = !isNaN(r.lat) && !isNaN(r.lng);
+                        if (!valid) console.warn('Invalid coords for recording:', r.id, r.lat, r.lon);
+                        return valid;
+                    });
 
-                if (validRecordings.length > 0) {
-                    console.log(`Found ${validRecordings.length} samples at ${currentRadius}km radius.`);
-                    return validRecordings.slice(0, 100);
+                    if (validRecordings.length > 0) {
+                        // console.log(`Found ${validRecordings.length} samples at ${currentRadius}km radius.`);
+                        return validRecordings.slice(0, 100);
+                    }
                 }
+
+                // If we're here, we found nothing valid. Expand and retry.
+                currentRadius *= 2;
+                if (currentRadius > maxRadius) currentRadius = maxRadius;
+
+            } catch (e) {
+                console.warn("XenoCanto fetch failed:", e);
+                // Don't retry on network error, just return empty
+                return [];
             }
-
-            // If we're here, we found nothing valid. Expand and retry.
-            // console.log(`No samples found at ${currentRadius}km. Expanding...`);
-            currentRadius *= 2;
-            if (currentRadius > maxRadius) currentRadius = maxRadius;
-
-        } catch (e) {
-            console.warn("XenoCanto fetch failed:", e);
-            // Don't retry on network error, just return empty
-            return [];
         }
-    }
 
-        return[];
-}
+        return [];
+    }
 }
