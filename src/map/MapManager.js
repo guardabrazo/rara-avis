@@ -65,7 +65,7 @@ export class MapManager {
             this.map.on('load', () => {
                 this.addTerrain();
                 this.applyStyleOverrides(initialStyle);
-                this.map.addControl(new mapboxgl.NavigationControl(), 'top-right');
+
 
                 // Track User Interaction
                 const explicitStartEvents = ['mousedown', 'touchstart', 'dragstart', 'rotatestart', 'pitchstart'];

@@ -469,6 +469,13 @@ select {
     flex: 1;
 }
 
+/* Specific fix for compass style dropdown to fit on line */
+#vis-mode-select {
+    width: 100px;
+    /* Fixed width to ensure it fits */
+    flex: none;
+}
+
 select:hover {
     border-color: var(--border-interactive);
 }
@@ -801,6 +808,13 @@ button:active {
     background: var(--bg-panel);
 }
 
+/* Disabled Knob State */
+#heading-knob.disabled {
+    opacity: 0.3;
+    pointer-events: none;
+    filter: grayscale(100%);
+}
+
 ::-webkit-scrollbar-thumb {
     background: var(--border-medium);
     border-radius: 3px;
@@ -1104,10 +1118,35 @@ body.zen-mode .center-panel {
     /* Above markers, below ring? */
 }
 
+/* Outdoors Theme Overrides (Blue + White) */
+.theme-outdoors #compass-ring {
+    border-color: #438FF0;
+    background: rgba(255, 255, 255, 0.7);
+    /* White fill */
+}
+
+.theme-outdoors #compass-ring::after {
+    color: #438FF0;
+    text-shadow: none;
+}
+
+.theme-outdoors #compass-flight-arrow {
+    border-bottom-color: #438FF0;
+}
+
+.theme-outdoors #compass-info {
+    color: #438FF0;
+    text-shadow: none;
+    font-weight: bold;
+}
+
 #compass-markers {
     position: absolute;
     width: 100%;
     height: 100%;
+    z-index: 101;
+    /* Ensure markers are above the ring */
+    pointer-events: none;
 }
 
 /* Startup Overlay */
@@ -1123,6 +1162,82 @@ body.zen-mode .center-panel {
     transition: opacity 1s ease-out;
     pointer-events: none;
     /* Allow clicks to pass through as it fades */
+}
+
+/* Rotary Control */
+#heading-rotary-container {
+    width: 30px;
+    height: 30px;
+    /* margin removed for control-row alignment */
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+#heading-knob {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 1px solid var(--text-primary);
+    /* Thinner border */
+    position: relative;
+    cursor: grab;
+    transition: border-color 0.3s;
+}
+
+#heading-knob:active {
+    cursor: grabbing;
+    border-color: var(--accent);
+}
+
+#heading-knob::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    /* Slight offset from edge */
+    left: 50%;
+    transform: translateX(-50%);
+    width: 1px;
+    /* Thin line */
+    height: 10px;
+    /* Halfway down approx */
+    background-color: var(--accent);
+    border-radius: 0;
+    box-shadow: none;
+}
+
+#heading-knob.disabled {
+    opacity: 0.15;
+    pointer-events: none;
+    border-color: var(--text-secondary);
+}
+
+/* Now Playing Header */
+.now-playing-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    padding-right: 5px;
+}
+
+.now-playing-header label {
+    margin-bottom: 0;
+    /* Override default label margin */
+}
+
+.now-playing-header .icon-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 4px;
+    transition: color 0.2s;
+}
+
+.now-playing-header .icon-btn:hover {
+    color: var(--accent);
 }
 
 .startup-overlay.fade-out {

@@ -21,7 +21,7 @@ export class Director {
 
         this.samplePool = []; // Birds
         this.fieldPool = [];  // Field Recordings
-        this.maxPoolSize = 300;
+        this.maxPoolSize = 60; // Reduced from 300 to force rotation
 
         this.birdsVolume = 0.7;
         this.fieldVolume = 0.5;
@@ -35,8 +35,8 @@ export class Director {
 
         this.lastFetchLocation = null;
         this.lastFetchTime = 0;
-        this.fetchInterval = 30000; // 30 seconds
-        this.fetchDistance = 0.02; // ~2km degrees
+        this.fetchInterval = 10000; // 10 seconds (More frequent)
+        this.fetchDistance = 0.01; // ~1km degrees (More sensitive)
         this.searchRadius = 30; // km
 
         // Wire UI events
@@ -51,6 +51,14 @@ export class Director {
                 else this.wanderer.stop();
             });
 
+            this.uiManager.on('setVisMode', (mode) => {
+                this.compass.setMode(mode);
+            });
+
+            this.uiManager.on('setCompassSize', (val) => {
+                this.compass.setSize(val);
+            });
+
             this.uiManager.on('setAutopilot', (enabled) => {
                 this.wanderer.setMode(enabled ? 'random' : 'locked');
             });
@@ -62,7 +70,6 @@ export class Director {
 
             this.uiManager.on('setSearchScope', (val) => {
                 this.searchRadius = val;
-                console.log(`Search Scope set to ${val}km`);
             });
 
             this.uiManager.on('setBirdsVolume', (val) => {
@@ -73,6 +80,14 @@ export class Director {
             this.uiManager.on('setFieldVolume', (val) => {
                 this.fieldVolume = val / 100;
                 this.player.setVolume('freesound', this.fieldVolume);
+            });
+
+            this.uiManager.on('forceRefresh', () => {
+                this.forceRefresh();
+            });
+
+            this.uiManager.on('setMapStyle', (style) => {
+                this.compass.setTheme(style);
             });
         }
     }
@@ -151,19 +166,24 @@ export class Director {
         // Check Time
         if (now - this.lastFetchTime < this.fetchInterval) return;
 
-        // Check Distance (Optional optimization)
-        // if (this.lastFetchLocation) {
-        //     const dx = center.lng - this.lastFetchLocation.lng;
-        //     const dy = center.lat - this.lastFetchLocation.lat;
-        //     const dist = Math.sqrt(dx*dx + dy*dy);
-        //     if (dist < this.fetchDistance) return;
-        // }
+        // Check Distance (Optimization)
+        let movedEnough = false;
+        if (this.lastFetchLocation) {
+            const dx = center.lng - this.lastFetchLocation.lng;
+            const dy = center.lat - this.lastFetchLocation.lat;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist > this.fetchDistance) {
+                movedEnough = true;
+            }
+        } else {
+            movedEnough = true; // First fetch
+        }
 
-        // FETCH
+        if (!movedEnough) return;
         this.lastFetchTime = now;
         this.lastFetchLocation = center;
 
-        // CULL DISTANT SAMPLES
+        // CULL DISTANT SAMPLES (Hybrid: Distance + FIFO)
         this.cullDistantSamples(center);
 
         try {
@@ -205,11 +225,18 @@ export class Director {
             if (fieldSamples.length > 0) {
                 const newField = fieldSamples.filter(s => !this.fieldPool.some(existing => existing.id === s.id));
                 if (newField.length > 0) {
-                    this.fieldPool = [...newField, ...this.fieldPool];
-                    // Keep field pool smaller/fresher
-                    if (this.fieldPool.length > 10) {
-                        this.fieldPool = this.fieldPool.slice(0, 10);
-                    }
+                    let combined = [...newField, ...this.fieldPool];
+
+                    // Protect playing
+                    const playingIds = this.player ? this.player.players.map(p => p.metadata && p.metadata.id).filter(Boolean) : [];
+                    const playing = combined.filter(s => playingIds.includes(s.id));
+                    const others = combined.filter(s => !playingIds.includes(s.id));
+
+                    const maxField = 10;
+                    const spaceLeft = Math.max(0, maxField - playing.length);
+                    const keptOthers = others.slice(0, spaceLeft);
+
+                    this.fieldPool = [...playing, ...keptOthers];
                 }
             }
         } catch (e) {
@@ -217,7 +244,67 @@ export class Director {
         }
     }
 
-    updateSoundscape() {
+    cullDistantSamples(center) {
+        const playingIds = new Set(this.player ? this.player.players.map(p => p.metadata && p.metadata.id).filter(Boolean) : []);
+        const cullDistKm = this.searchRadius * 1.5; // Cull if > 1.5x search radius
+
+        // Filter Bird Pool
+        const initialBirdCount = this.samplePool.length;
+        this.samplePool = this.samplePool.filter(s => {
+            if (playingIds.has(s.id)) return true; // Keep playing
+            const start = turf.point([center.lng, center.lat]);
+            const end = turf.point([s.lng, s.lat]);
+            const dist = turf.distance(start, end);
+            return dist <= cullDistKm;
+        });
+
+        // Filter Field Pool
+        this.fieldPool = this.fieldPool.filter(s => {
+            if (playingIds.has(s.id)) return true; // Keep playing
+            const start = turf.point([center.lng, center.lat]);
+            const end = turf.point([s.lng, s.lat]);
+            const dist = turf.distance(start, end);
+            return dist <= cullDistKm;
+        });
+
+        const culledCount = initialBirdCount - this.samplePool.length;
+        if (culledCount > 0) {
+            console.log(`Culled ${culledCount} distant samples.`);
+        }
+    }
+
+    forceRefresh() {
+        console.log('Force Refreshing Soundscape...');
+
+        // 1. Stop Audio
+        if (this.player) {
+            this.player.stopAll();
+        }
+
+        // 2. Clear Pools
+        this.samplePool = [];
+        this.fieldPool = [];
+
+        // 3. Reset Fetch State
+        this.lastFetchTime = 0;
+        this.lastFetchLocation = null;
+
+        // 4. Clear Compass Markers (by updating with empty list)
+        // The next update loop will handle this, but we can force it if needed.
+        // Actually, since we cleared the pools, the next update() call will pass empty arrays to compass.update()
+        // which will call updateMarkerStates([]) which will mark everything as dying.
+        // To make it instant, we can manually clear the compass state if we had access, 
+        // but letting them fade out quickly is also fine. 
+        // If "instant" is required:
+        if (this.compass) {
+            this.compass.markerStates.clear();
+        }
+
+        // 5. Fetch Immediately
+        this.checkAndFetchSamples();
+    }
+
+    async updateSoundscape() {
         const now = Date.now();
 
         // 1. Play Birds

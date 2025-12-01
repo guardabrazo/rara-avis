@@ -7,7 +7,8 @@ export class Wanderer {
         this.mode = 'random'; // 'random' | 'locked'
 
         // Movement
-        this.speed = 0.00005; // Base speed (matches slider value 1)
+        // Movement
+        this.speed = 0.000025; // Base speed (matches slider value 0.5)
         this.bearing = 90; // Current flight direction (degrees)
         this.targetBearing = 90; // Where we want to head (for smooth turning)
 
@@ -38,10 +39,10 @@ export class Wanderer {
     }
 
     setSpeed(val) {
-        // Map 0-10 slider to useful speed range
-        // 0 -> 0
-        // 1 -> 0.00005 (Old slow default)
-        // 10 -> 0.0005 (Old max)
+        // Map 0-2 slider to useful speed range
+        // 0.5 -> 0.000025 (Default)
+        // 1.0 -> 0.00005
+        // 2.0 -> 0.0001
         this.speed = val * 0.00005;
     }
 

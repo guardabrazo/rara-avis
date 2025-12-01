@@ -40,8 +40,6 @@ export class UIManager {
             // Wanderer Controls
             flightToggle: document.getElementById('flight-toggle'),
             autopilotToggle: document.getElementById('autopilot-toggle'),
-            headingSlider: document.getElementById('heading-slider'),
-            headingVal: document.getElementById('heading-val'),
 
             // View Controls
             compassToggle: document.getElementById('compass-toggle'),
@@ -99,7 +97,6 @@ export class UIManager {
         if (flySpeedInput) {
             flySpeedInput.addEventListener('input', (e) => {
                 const val = parseFloat(e.target.value);
-                console.log('Speed Input:', val, 'Label Element:', this.elements.flySpeedVal);
                 this.emit('setFlySpeed', val);
                 if (this.elements.flySpeedVal) this.elements.flySpeedVal.textContent = val.toFixed(1);
             });
@@ -126,6 +123,29 @@ export class UIManager {
         if (this.elements.compassToggle) {
             this.elements.compassToggle.addEventListener('change', (e) => {
                 this.emit('setCompass', e.target.checked);
+            });
+        }
+
+        const visModeSelect = document.getElementById('vis-mode-select');
+        if (visModeSelect) {
+            visModeSelect.addEventListener('change', (e) => {
+                this.emit('setVisMode', e.target.value);
+            });
+        }
+
+        const refreshBtn = document.getElementById('refresh-btn');
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', () => {
+                this.emit('forceRefresh');
+            });
+        }
+        const compassSizeSlider = document.getElementById('compass-size-slider');
+        const compassSizeVal = document.getElementById('compass-size-val');
+        if (compassSizeSlider) {
+            compassSizeSlider.addEventListener('input', (e) => {
+                const val = parseFloat(e.target.value);
+                this.emit('setCompassSize', val);
+                if (compassSizeVal) compassSizeVal.textContent = `${val.toFixed(1)}x`;
             });
         }
 
@@ -162,23 +182,56 @@ export class UIManager {
         }
 
         if (this.elements.autopilotToggle) {
-            // Set initial state
-            if (this.elements.headingSlider) this.elements.headingSlider.disabled = this.elements.autopilotToggle.checked;
+            // Rotary Knob Logic
+            this.knob = document.getElementById('heading-knob');
+            this.isDraggingKnob = false;
+            this.currentKnobAngle = 0; // Initialize to 0 (North)
+
+            if (this.knob) {
+                this.knob.addEventListener('mousedown', (e) => {
+                    this.isDraggingKnob = true;
+                    this.updateKnobFromEvent(e);
+                    document.body.style.userSelect = 'none'; // Prevent selection
+                });
+
+                window.addEventListener('mousemove', (e) => {
+                    if (this.isDraggingKnob) {
+                        this.updateKnobFromEvent(e);
+                    }
+                });
+
+                window.addEventListener('mouseup', () => {
+                    this.isDraggingKnob = false;
+                    document.body.style.userSelect = '';
+                });
+            }
+
+            // Update Knob UI when autopilot changes
+            this.on('setAutopilot', (enabled) => {
+                if (this.knob) {
+                    if (enabled) {
+                        this.knob.classList.add('disabled');
+                    } else {
+                        this.knob.classList.remove('disabled');
+                    }
+                }
+            });
+
+            // Set initial state for heading slider (if it still exists, though knob replaces it)
+
 
             this.elements.autopilotToggle.addEventListener('change', (e) => {
                 const isAutopilot = e.target.checked;
                 this.emit('setAutopilot', isAutopilot);
-                if (this.elements.headingSlider) this.elements.headingSlider.disabled = isAutopilot;
+
+                // When toggling OFF, restore/apply the current manual heading
+                if (!isAutopilot && this.currentKnobAngle !== undefined) {
+                    this.emit('setWanderDirection', this.currentKnobAngle);
+                }
             });
         }
 
-        if (this.elements.headingSlider) {
-            this.elements.headingSlider.addEventListener('input', (e) => {
-                const val = parseInt(e.target.value);
-                this.emit('setWanderDirection', val);
-                if (this.elements.headingVal) this.elements.headingVal.textContent = `${val}°`;
-            });
-        }
+
 
         const zenBtn = document.getElementById('zen-mode-btn');
         if (zenBtn) {
@@ -190,6 +243,41 @@ export class UIManager {
                 this.toggleZenMode();
             }
         });
+    }
+
+    updateKnobFromEvent(e) {
+        if (!this.knob) return;
+
+        const rect = this.knob.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+
+        // Calculate angle from center to mouse
+        const dx = e.clientX - centerX;
+        const dy = e.clientY - centerY;
+
+        // Atan2 gives angle in radians from -PI to PI
+        // -PI/2 is up (0 deg for us)
+        let angleRad = Math.atan2(dy, dx);
+
+        // Convert to degrees
+        let angleDeg = angleRad * (180 / Math.PI);
+
+        // Adjust so 0 is UP (currently 0 is Right)
+        angleDeg += 90;
+
+        // Normalize to 0-360
+        if (angleDeg < 0) angleDeg += 360;
+
+        this.currentKnobAngle = angleDeg; // Store for autopilot toggle
+        this.setKnobRotation(angleDeg);
+        this.emit('setWanderDirection', angleDeg);
+    }
+
+    setKnobRotation(deg) {
+        if (this.knob) {
+            this.knob.style.transform = `rotate(${deg}deg)`;
+        }
     }
 
     updateStatus(type, harmonyMode, density) {
