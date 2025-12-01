@@ -68,16 +68,18 @@ export class UIManager {
         } = this.elements;
 
         if (startOverlay) {
-            const hide = () => this.hideOverlay();
-            startOverlay.addEventListener('click', hide);
-            startOverlay.addEventListener('touchstart', hide);
+            const start = () => {
+                this.hideOverlay(); // Fade out immediately
+                this.emit('play');
+            };
+            startOverlay.addEventListener('click', start);
+            startOverlay.addEventListener('touchstart', start);
         }
 
         if (playBtn) {
             playBtn.addEventListener('click', () => {
                 // Auto-init audio if not ready
                 // App.js handles the logic, we just emit
-                playBtn.classList.remove('highlight-pulse');
                 this.emit('play');
                 playBtn.style.borderColor = 'var(--accent)';
                 if (stopBtn) stopBtn.style.borderColor = '';

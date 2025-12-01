@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite';
 
 export default defineConfig({
-    base: '/rara-avis/',
+    base: '/aviadrift/',
     server: {
         proxy: {
             '/api/xeno-canto': {

@@ -87,13 +87,13 @@ body {
     left: 0;
     width: 100%;
     height: 100%;
-    background: var(--bg-base);
+    background: rgba(0, 0, 0, 0.8);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 10000;
     cursor: pointer;
-    transition: opacity var(--transition-medium);
+    transition: opacity 1s ease;
 }
 
 .init-overlay.hidden {
@@ -104,52 +104,26 @@ body {
 .init-content {
     text-align: center;
     position: relative;
+    color: var(--text-primary);
 }
 
-.init-content h2 {
-    font-size: 48px;
-    font-weight: normal;
-    letter-spacing: var(--letter-spacing-lg);
-    margin-bottom: var(--spacing-lg);
-}
-
-.init-content p {
-    font-size: 14px;
-    letter-spacing: var(--letter-spacing-sm);
-    color: var(--text-secondary);
+.overlay-title {
+    font-size: 64px;
+    font-weight: 300;
+    letter-spacing: 16px;
+    margin-bottom: var(--spacing-md);
     text-transform: uppercase;
 }
 
-.init-crosshair {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 60px;
-    height: 60px;
-    opacity: 0.3;
+.overlay-subtitle {
+    font-size: 18px;
+    font-weight: 400;
+    letter-spacing: 2px;
+    color: var(--text-muted);
+    text-transform: uppercase;
 }
 
-.init-crosshair::before,
-.init-crosshair::after {
-    content: '';
-    position: absolute;
-    background: var(--accent);
-}
-
-.init-crosshair::before {
-    top: 50%;
-    left: 0;
-    width: 100%;
-    height: 1px;
-}
-
-.init-crosshair::after {
-    left: 50%;
-    top: 0;
-    width: 1px;
-    height: 100%;
-}
+/* ... existing styles ... */
 
 /* App Container */
 #app {
@@ -626,35 +600,19 @@ button:hover {
     background: rgba(255, 255, 255, 0.05);
 }
 
-/* Play Button Highlight */
-@keyframes pulse-border {
-    0% {
-        border-color: var(--border-medium);
-        box-shadow: 0 0 0 rgba(255, 255, 255, 0);
-    }
-
-    50% {
-        border-color: var(--accent);
-        box-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
-    }
-
-    100% {
-        border-color: var(--border-medium);
-        box-shadow: 0 0 0 rgba(255, 255, 255, 0);
-    }
-}
-
-.highlight-pulse {
-    animation: pulse-border 2s infinite;
-}
+/* Play Button Highlight - Removed Pulse */
 
 /* Bird Watcher UI */
 #now-playing-list {
     display: flex;
     flex-direction: column;
-    gap: 4px;
     gap: 8px;
     min-height: 100px;
+    width: 100%;
+    align-items: stretch;
+    padding: 0 !important;
+    margin: 0 !important;
+    transform: none !important;
 }
 
 .bird-card {
@@ -667,6 +625,15 @@ button:hover {
     text-transform: uppercase;
     letter-spacing: 2px;
     color: var(--text-muted);
+    width: 100% !important;
+    box-sizing: border-box !important;
+    margin: 0 !important;
+    transform: none !important;
+    position: relative !important;
+    left: auto !important;
+    right: auto !important;
+    display: block !important;
+    float: none !important;
 
     /* Layout & Transition Props */
     max-height: 100px;
@@ -1128,4 +1095,68 @@ body.zen-mode .center-panel {
     position: absolute;
     width: 100%;
     height: 100%;
+}
+
+/* Startup Overlay */
+.startup-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: #000;
+    z-index: 9999;
+    opacity: 1;
+    transition: opacity 1s ease-out;
+    pointer-events: none;
+    /* Allow clicks to pass through as it fades */
+}
+
+.startup-overlay.fade-out {
+    opacity: 0;
+}
+
+/* Play Hint */
+.play-hint {
+    position: absolute;
+    bottom: 100%;
+    /* Position above the play button */
+    left: 50%;
+    transform: translateX(-50%);
+    margin-bottom: 15px;
+    text-align: center;
+    color: white;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    pointer-events: none;
+    white-space: nowrap;
+    animation: fadeIn 0.5s ease-out;
+}
+
+.play-hint .arrow-down {
+    width: 0;
+    height: 0;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-top: 8px solid white;
+    margin: 5px auto 0;
+}
+
+.transport-controls {
+    position: relative;
+    /* Ensure hint is positioned relative to this container */
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translate(-50%, 0);
+    }
 }
