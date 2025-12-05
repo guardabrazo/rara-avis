@@ -3,8 +3,6 @@
 
 **Aviadrift** is an immersive, web-based geospatial instrument that allows users to explore the sonic landscape of the world. By combining 3D terrain mapping with real-time audio synthesis and geolocation-based field recordings, it creates a unique "flight" experience through the biophony of our planet.
 
-![Aviadrift Screenshot](./screenshot.png)
-
 ## Features
 
 *   **Global Biophony**: Automatically fetches and plays bird songs (via Xeno-canto) and ambient field recordings (via Freesound) based on your virtual location.

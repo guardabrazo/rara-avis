@@ -299,7 +299,7 @@ export class UIManager {
         const list = document.getElementById('now-playing-list');
         if (!list) return;
 
-        const speciesName = `${sample.gen} ${sample.sp}`;
+        const speciesName = (sample.gen && sample.sp) ? `${sample.gen} ${sample.sp}` : (sample.name || 'Unknown Species');
 
         // Track this sample instance
         this.playingSamples[sample.id] = speciesName;
@@ -329,13 +329,15 @@ export class UIManager {
         if (!speciesName) return;
 
         // Decrement count
-        this.speciesCounts[speciesName]--;
+        if (this.speciesCounts[speciesName] > 0) {
+            this.speciesCounts[speciesName]--;
+        }
 
         // Clean up sample tracking
         delete this.playingSamples[id];
 
         // If no more instances of this species, remove card
-        if (this.speciesCounts[speciesName] <= 0) {
+        if (!this.speciesCounts[speciesName] || this.speciesCounts[speciesName] <= 0) {
             const cardId = `species-${speciesName.replace(/\s+/g, '-')}`;
             const card = document.getElementById(cardId);
 
@@ -344,10 +346,23 @@ export class UIManager {
                 card.addEventListener('transitionend', () => {
                     card.remove();
                 });
+                // Fallback if transition doesn't fire (e.g. hidden)
+                setTimeout(() => {
+                    if (card && card.parentNode) card.remove();
+                }, 500);
             }
 
             delete this.speciesCounts[speciesName];
         }
+    }
+
+    clearNowPlaying() {
+        const list = document.getElementById('now-playing-list');
+        if (list) {
+            list.innerHTML = '';
+        }
+        this.playingSamples = {};
+        this.speciesCounts = {};
     }
 
     toggleZenMode() {

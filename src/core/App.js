@@ -106,9 +106,39 @@ export class App {
 
     analyzeMap() {
         // Logic extracted from original main.js
-        if (!this.mapManager.map) return { density: 0, type: 'mix', entropy: 0.5 };
+        if (!this.mapManager.map) return { density: 0, type: 'mix', entropy: 0.5, elevation: 0 };
 
+        const center = this.mapManager.getCenter();
         const centerPoint = this.mapManager.getProjectedCenter();
+
+        // 1. Get Elevation (Robust check for Oceans/Seas)
+        // Mapbox Terrain DEM usually returns 0 for oceans.
+        // We use a small threshold (0.5m) to account for noise or tide levels in data.
+        const elevation = this.mapManager.map.queryTerrainElevation(center) || 0;
+
+        // 2. Vector Feature Check
+        // A. Center Point Check (Most accurate for "Am I over water right now?")
+        const centerFeatures = this.mapManager.getFeatures([
+            [centerPoint.x - 1, centerPoint.y - 1],
+            [centerPoint.x + 1, centerPoint.y + 1]
+        ]);
+
+        let isCenterWater = false;
+        // Check if the top-most relevant feature is water
+        for (const f of centerFeatures) {
+            if (f.layer.id.includes('water')) {
+                // Filter out rivers/streams if we only want to avoid big water bodies?
+                // For now, avoid all water.
+                isCenterWater = true;
+                break;
+            }
+            // If we hit a building or landuse first, then we are NOT over water (even if water is below/background)
+            if (f.layer.id.includes('building') || f.layer.id.includes('landuse') || f.layer.id.includes('park')) {
+                break;
+            }
+        }
+
+        // B. Area Density (Voting) - Good for "Urban" vs "Nature" context
         const bbox = [
             [centerPoint.x - 50, centerPoint.y - 50],
             [centerPoint.x + 50, centerPoint.y + 50]
@@ -142,15 +172,26 @@ export class App {
         });
 
         let type = 'mix';
-        if (waterCount > buildingCount && waterCount > natureCount) type = 'water';
-        else if (buildingCount > waterCount && buildingCount > natureCount) type = 'urban';
-        else if (natureCount > waterCount && natureCount > buildingCount) type = 'nature';
+
+        // Priority 1: Elevation Check (Ocean/Sea)
+        if (elevation <= 0.5) {
+            type = 'water';
+        }
+        // Priority 2: Center Point Vector Check (Lakes/Rivers not at 0 elevation)
+        else if (isCenterWater) {
+            type = 'water';
+        }
+        // Priority 3: Voting (Context)
+        else if (buildingCount > natureCount) type = 'urban';
+        else if (natureCount > buildingCount) type = 'nature';
+        // Fallback: If voting says water but center isn't, maybe we are near water?
+        // Let's stick to the robust checks for 'water' type to avoid false positives.
 
         // Calculate Entropy
         let entropy = 0.5;
         if (type === 'urban') entropy = 0.2;
         else if (type === 'nature') entropy = 0.8;
 
-        return { density, type, entropy };
+        return { density, type, entropy, elevation };
     }
 }

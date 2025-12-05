@@ -12,14 +12,24 @@ export class Compass {
             inactiveBase: '#cccccc' // Default light gray
         };
 
+        // Canvas Size Multipliers (Configurable)
+        this.canvasSizeMultipliers = {
+            constellation: 'auto',
+            crosshair: 'auto',
+            sonar: 'auto',
+            default: 'auto'
+        };
+
         // Canvas Setup
         this.canvas = document.createElement('canvas');
         this.canvas.style.position = 'absolute';
         // Make canvas larger than container to avoid cropping markers
-        this.canvas.style.top = '-50%';
-        this.canvas.style.left = '-50%';
-        this.canvas.style.width = '200%';
-        this.canvas.style.height = '200%';
+        // Make canvas larger than container to avoid cropping markers
+        // 400% size to cover more screen area
+        this.canvas.style.top = '-150%';
+        this.canvas.style.left = '-150%';
+        this.canvas.style.width = '400%';
+        this.canvas.style.height = '400%';
         this.canvas.style.pointerEvents = 'none';
 
         // Clear existing DOM markers if any
@@ -34,7 +44,9 @@ export class Compass {
         // State Tracking for Animations
         this.markerStates = new Map(); // id -> { currentRotation, currentHeight, currentOpacity, dying, deathTime }
         this.currentFlightRotation = 0;
+        this.currentFlightRotation = 0;
         this.userScale = 1.2; // Default Size 1.2x
+        this.mode = 'crosshair'; // Explicitly set default mode
     }
 
     // ...
@@ -109,15 +121,26 @@ export class Compass {
 
     setTheme(theme) {
         if (theme && theme.includes('outdoors')) {
-            // Outdoors: Blue + White Theme
-            this.colors.active = '#438FF0'; // Specific Blue
-            this.colors.inactiveBase = '#ffffff'; // White Inactive
+            // Outdoors: Black + White Theme
+            this.colors.primary = '#000000';
+            this.colors.active = '#000000'; // Black Active
+            this.colors.inactiveBase = '#000000'; // Black Inactive
             this.parentContainer.classList.add('theme-outdoors');
-        } else {
-            // Default (Dark/Satellite): Light Theme for Dark Map
+            this.currentTheme = 'outdoors';
+        } else if (theme && theme.includes('satellite')) {
+            // Satellite: High Contrast
+            this.colors.primary = '#ffffff';
             this.colors.active = '#ffffff';
             this.colors.inactiveBase = '#cccccc';
             this.parentContainer.classList.remove('theme-outdoors');
+            this.currentTheme = 'satellite';
+        } else {
+            // Default (Dark/Satellite): Light Theme for Dark Map
+            this.colors.primary = '#ffffff';
+            this.colors.active = '#ffffff';
+            this.colors.inactiveBase = '#cccccc';
+            this.parentContainer.classList.remove('theme-outdoors');
+            this.currentTheme = 'default';
         }
     }
 
@@ -128,13 +151,22 @@ export class Compass {
         // getBoundingClientRect() gives the transformed size, which causes double-squashing
         const width = this.container.offsetWidth;
         const height = this.container.offsetHeight;
-        const dpr = window.devicePixelRatio || 1;
+        const dpr = Math.max(window.devicePixelRatio || 1, 2);
         const scale = this.userScale || 1.0;
 
         // Determine Canvas Size Multiplier
         // Constellation needs to cover the whole screen (approx), relative to the small compass container.
         // Compass container is ~100px. Screen is ~1920px. So 20x should be safe.
-        const multiplier = (this.mode === 'constellation') ? 20 : 2;
+        let multiplier = this.canvasSizeMultipliers[this.mode] || this.canvasSizeMultipliers.default;
+
+        if (multiplier === 'auto') {
+            // Calculate multiplier to cover the whole screen
+            // We use the larger dimension to ensure coverage
+            const maxDim = Math.max(window.innerWidth, window.innerHeight);
+            // Add some buffer (1.5x) to handle rotation and aspect ratio differences
+            const requiredScale = (maxDim / width) * 1.5;
+            multiplier = requiredScale;
+        }
 
         const logicalWidth = width * multiplier;
         const logicalHeight = height * multiplier;
@@ -169,7 +201,7 @@ export class Compass {
     }
 
     setMode(mode) {
-        this.mode = mode;
+        this.mode = mode || 'crosshair'; // Default to crosshair
         // Reset or init specific state if needed
         if (mode === 'sonar') {
             this.sweepAngle = 0;
@@ -180,10 +212,22 @@ export class Compass {
         this.userScale = scale;
     }
 
+    hide() {
+        if (this.parentContainer) {
+            this.parentContainer.classList.add('hidden');
+        }
+    }
+
+    show() {
+        if (this.parentContainer) {
+            this.parentContainer.classList.remove('hidden');
+        }
+    }
+
     update(map, samples, amplitudes, playingIds = [], flightBearing = 0, pitch = 0, info = null) {
         if (!map || !this.container || !this.parentContainer) return;
 
-        this.parentContainer.style.display = 'flex';
+        // this.parentContainer.classList.remove('hidden'); // REMOVED: Let Director/UI control visibility
 
         const center = map.getCenter();
         const bearing = map.getBearing();
@@ -201,14 +245,7 @@ export class Compass {
         const ring = document.getElementById('compass-ring');
         if (ring) ring.style.transform = `rotate(${-bearing}deg)`;
 
-        // 1.5 Inner Ring (DOM)
-        let innerRing = document.getElementById('compass-ring-inner');
-        if (!innerRing) {
-            innerRing = document.createElement('div');
-            innerRing.id = 'compass-ring-inner';
-            this.container.appendChild(innerRing);
-        }
-        innerRing.style.transform = `rotate(${-bearing}deg)`;
+        // Inner Ring Removed
 
         // 1.5 Info Text (DOM)
         let infoEl = document.getElementById('compass-info');
@@ -217,13 +254,20 @@ export class Compass {
             infoEl.id = 'compass-info';
             this.parentContainer.appendChild(infoEl);
         }
-        if (info) {
-            infoEl.innerHTML = `
-                <div>${info.lat.toFixed(2)}º</div>
-                <div>${info.lng.toFixed(2)}º</div>
-                <div>▵ ${Math.round(info.elevation)}m</div>
-            `;
-            infoEl.style.transform = '';
+
+        // Hide DOM info in crosshair mode (we draw it on canvas)
+        if (this.mode === 'crosshair') {
+            infoEl.style.display = 'none';
+        } else {
+            infoEl.style.display = 'flex';
+            if (info) {
+                infoEl.innerHTML = `
+                    <div>${info.lat.toFixed(2)}º</div>
+                    <div>${info.lng.toFixed(2)}º</div>
+                    <div>▵ ${Math.round(info.elevation)}m</div>
+                `;
+                infoEl.style.transform = '';
+            }
         }
 
         // 2. Flight Direction Arrow (DOM - kept for simplicity as it's just one element)
@@ -252,31 +296,284 @@ export class Compass {
         this.ctx.clearRect(0, 0, width, height);
 
         // SHARED STATE UPDATE (Fading)
-        this.updateMarkerStates(samples);
+        this.updateMarkerStates(samples, playingIds);
 
         if (this.mode === 'sonar') {
             this.renderSonar(cx, cy, radius, map, amplitudes, playingIds, bearing);
         } else if (this.mode === 'constellation') {
             this.renderConstellation(cx, cy, radius, map, amplitudes, playingIds, bearing);
+        } else if (this.mode === 'crosshair') {
+            this.renderCrosshair(cx, cy, radius, map, amplitudes, playingIds, bearing, info);
         } else {
             this.renderCompass(cx, cy, radius, map, amplitudes, playingIds, bearing);
         }
     }
 
-    updateMarkerStates(samples) {
+    renderCrosshair(cx, cy, radius, map, amplitudes, playingIds = [], bearing, info) {
+        const activeIds = new Set(playingIds);
+        const center = map.getCenter();
+        const maxDistKm = 50; // Max distance to display (edge of canvas)
+
+        // 1. Draw Crosshair (Static)
+        const chSize = 100; // 200x200 total size (radius 100)
+
+        this.ctx.beginPath();
+        // Horizontal
+        this.ctx.moveTo(cx - chSize, cy);
+        this.ctx.lineTo(cx + chSize, cy);
+        // Vertical
+        this.ctx.moveTo(cx, cy - chSize);
+        this.ctx.lineTo(cx, cy + chSize);
+
+        this.ctx.strokeStyle = this.colors.primary || '#ffffff'; // White
+        this.ctx.lineWidth = 1;
+        // Increase opacity for satellite AND outdoors mode
+        const isHighContrast = (this.currentTheme === 'satellite' || this.currentTheme === 'outdoors');
+        this.ctx.globalAlpha = isHighContrast ? 0.6 : 0.3;
+        this.ctx.stroke();
+        this.ctx.globalAlpha = 1.0;
+
+        // 2. Draw Labels (Lat, Lon, Elevation)
+        if (info) {
+            this.ctx.font = '10px monospace'; // Small monospace font
+            this.ctx.fillStyle = this.colors.primary || '#ffffff';
+            this.ctx.textAlign = 'center';
+            this.ctx.textBaseline = 'middle';
+
+            // Boost text opacity in satellite/outdoors mode
+            this.ctx.globalAlpha = isHighContrast ? 1.0 : 0.6;
+
+            // Lat: Bottom of Vertical Line
+            const latDir = info.lat >= 0 ? 'N' : 'S';
+            const latText = `${Math.abs(info.lat).toFixed(2)}°${latDir}`;
+            this.ctx.fillText(latText, cx, cy + chSize + 15);
+
+            // Lon: Right of Horizontal Line
+            this.ctx.textAlign = 'left';
+            const lonDir = info.lng >= 0 ? 'E' : 'W';
+            const lonText = `${Math.abs(info.lng).toFixed(2)}°${lonDir}`;
+            this.ctx.fillText(lonText, cx + chSize + 10, cy);
+
+            // Elevation: Left of Horizontal Line
+            this.ctx.textAlign = 'right';
+            const elevText = `${Math.round(info.elevation)}m`;
+
+            // Measure text to position triangle
+            this.ctx.font = '10px monospace';
+            const textWidth = this.ctx.measureText(elevText).width;
+
+            // Draw Value
+            this.ctx.fillText(elevText, cx - chSize - 10, cy);
+
+            // Draw Triangle (Bigger and Closer)
+            this.ctx.font = '16px monospace'; // Bigger
+            // Position: Right edge of text - textWidth - padding
+            // We use right alignment, so the x coordinate is the right edge of the triangle character
+            this.ctx.fillText('▵', cx - chSize - 10 - textWidth - 3, cy - 1);
+
+            this.ctx.globalAlpha = 1.0;
+        }
+
+        // 3. Calculate Positions & Cluster
+        const clusters = new Map(); // "lat,lng" -> [states]
+        const isDesktop = window.innerWidth > 768; // Simple desktop check
+        const spreadFactor = isDesktop ? 1.5 : 1.0; // Spread more on desktop
+
+        this.markerStates.forEach(state => {
+            if (state.currentOpacity < 0.01) return;
+            if (typeof state.lat !== 'number' || typeof state.lng !== 'number') return;
+
+            const key = `${state.lat.toFixed(4)},${state.lng.toFixed(4)}`;
+            if (!clusters.has(key)) clusters.set(key, []);
+            clusters.get(key).push(state);
+        });
+
+        // 4. Render Clusters (Markers on TOP)
+        // First, calculate all active marker positions to resolve collisions
+        const activeNodes = [];
+        const inactiveNodes = [];
+
+        clusters.forEach((states, key) => {
+            // Use the first state for position calculation
+            const representative = states[0];
+
+            const start = turf.point([center.lng, center.lat]);
+            const end = turf.point([representative.lng, representative.lat]);
+            const targetBearing = turf.bearing(start, end);
+            const distanceKm = turf.distance(start, end);
+
+            // Calculate Position relative to center
+            // Apply spread factor
+            let r = (distanceKm / maxDistKm) * chSize * 2 * spreadFactor;
+
+            let relativeBearing = targetBearing - bearing;
+            while (relativeBearing < 0) relativeBearing += 360;
+            while (relativeBearing >= 360) relativeBearing -= 360;
+
+            const angleRad = (relativeBearing * Math.PI) / 180;
+            const x = cx + Math.sin(angleRad) * r;
+            const y = cy - Math.cos(angleRad) * r;
+
+            // Determine if active (any in cluster)
+            let maxActiveWeight = 0;
+            let maxAmp = 0;
+
+            states.forEach(s => {
+                if (s.activeWeight > maxActiveWeight) maxActiveWeight = s.activeWeight;
+                const amp = amplitudes[s.id] || 0;
+                if (amp > maxAmp) maxAmp = amp;
+            });
+
+            const node = {
+                x, y,
+                originalX: x, originalY: y,
+                states,
+                representative,
+                distanceKm,
+                maxActiveWeight,
+                maxAmp,
+                opacity: representative.currentOpacity
+            };
+
+            if (maxActiveWeight > 0.01) {
+                activeNodes.push(node);
+            } else {
+                inactiveNodes.push(node);
+            }
+        });
+
+        // Resolve Collisions for Active Nodes
+        this.resolveCollisions(activeNodes, 20); // 20px min distance
+
+        // Render Inactive Nodes First
+        inactiveNodes.forEach(node => {
+            this.renderMarkerNode(node, cx, cy, chSize, maxDistKm);
+        });
+
+        // Render Active Nodes (Resolved Positions)
+        activeNodes.forEach(node => {
+            this.renderMarkerNode(node, cx, cy, chSize, maxDistKm);
+        });
+    }
+
+    resolveCollisions(nodes, minDistance) {
+        const iterations = 5;
+        for (let i = 0; i < iterations; i++) {
+            for (let a = 0; a < nodes.length; a++) {
+                for (let b = a + 1; b < nodes.length; b++) {
+                    const nodeA = nodes[a];
+                    const nodeB = nodes[b];
+
+                    const dx = nodeA.x - nodeB.x;
+                    const dy = nodeA.y - nodeB.y;
+                    const distSq = dx * dx + dy * dy;
+                    const minDistSq = minDistance * minDistance;
+
+                    if (distSq < minDistSq && distSq > 0.001) {
+                        const dist = Math.sqrt(distSq);
+                        const overlap = minDistance - dist;
+                        const nx = dx / dist;
+                        const ny = dy / dist;
+
+                        // Move apart
+                        const moveX = nx * overlap * 0.5;
+                        const moveY = ny * overlap * 0.5;
+
+                        nodeA.x += moveX;
+                        nodeA.y += moveY;
+                        nodeB.x -= moveX;
+                        nodeB.y -= moveY;
+                    }
+                }
+            }
+        }
+    }
+
+    renderMarkerNode(node, cx, cy, chSize, maxDistKm) {
+        const { x, y, representative, distanceKm, maxActiveWeight, maxAmp, opacity } = node;
+
+        // 1. Inactive State (Background)
+        const distFactor = Math.max(0.0, 1 - (distanceKm / maxDistKm)); // Allow fade to 0 at edge
+
+        // Boost opacity in satellite/outdoors mode
+        const isHighContrast = (this.currentTheme === 'satellite' || this.currentTheme === 'outdoors');
+        const inactiveOpacityBoost = isHighContrast ? 5.0 : 1.0;
+
+        // Inactive Dot
+        this.ctx.beginPath();
+        this.ctx.arc(x, y, 3, 0, Math.PI * 2);
+        this.ctx.fillStyle = this.colors.inactiveBase;
+        this.ctx.globalAlpha = Math.min(1.0, opacity * 0.6 * distFactor * (1 - maxActiveWeight) * inactiveOpacityBoost);
+        this.ctx.fill();
+
+        // Inactive Ring
+        this.ctx.beginPath();
+        this.ctx.arc(x, y, 5, 0, Math.PI * 2);
+        this.ctx.strokeStyle = this.colors.inactiveBase;
+        this.ctx.lineWidth = 0.5;
+        this.ctx.globalAlpha = Math.min(1.0, opacity * 0.3 * distFactor * (1 - maxActiveWeight) * inactiveOpacityBoost);
+        this.ctx.stroke();
+
+        // 2. Active State (Foreground)
+        if (maxActiveWeight > 0.01) {
+            const baseSize = 4;
+            const pulse = maxAmp * 10;
+            const size = baseSize + pulse;
+
+            // Active Dot
+            this.ctx.beginPath();
+            this.ctx.arc(x, y, size, 0, Math.PI * 2);
+            this.ctx.fillStyle = this.colors.active;
+
+            // Full opacity in satellite/outdoors mode, but keep fade animation
+            this.ctx.globalAlpha = isHighContrast ? (1.0 * maxActiveWeight) : (opacity * maxActiveWeight);
+            this.ctx.fill();
+
+            // Outer glow ring
+            this.ctx.beginPath();
+            this.ctx.arc(x, y, size + 4, 0, Math.PI * 2);
+            this.ctx.strokeStyle = this.colors.active;
+            this.ctx.lineWidth = 1;
+            this.ctx.globalAlpha = isHighContrast ? (1.0 * maxActiveWeight) : (opacity * maxActiveWeight * 0.5 * (1 - maxAmp));
+            this.ctx.stroke();
+        }
+
+        // DEBUG: Draw Name (Active Only)
+        if (maxActiveWeight > 0.01) {
+            // Full opacity in satellite/outdoors mode, but keep fade animation
+            this.ctx.globalAlpha = isHighContrast ? (1.0 * maxActiveWeight) : (opacity * maxActiveWeight);
+            this.ctx.font = '8px monospace';
+            this.ctx.fillStyle = this.colors.primary || '#ffffff';
+            this.ctx.textAlign = 'left';
+            // Draw scientific name
+            const name = representative.sciName || representative.name || representative.id;
+            this.ctx.fillText(name.toUpperCase(), x + 12, y - 5);
+        }
+
+        this.ctx.globalAlpha = 1.0;
+    }
+
+    updateMarkerStates(samples, playingIds = []) {
         const sampleIds = new Set(samples.map(s => s.id));
+        const activeSet = new Set(playingIds);
 
         // 1. Update/Create existing samples
         samples.forEach(sample => {
             let state = this.markerStates.get(sample.id);
+            // Construct Scientific Name
+            const sciName = (sample.gen && sample.sp) ? `${sample.gen} ${sample.sp}` : sample.name;
+
             if (!state) {
                 state = {
                     id: sample.id,
+                    name: sample.name || sample.id,
+                    sciName: sciName, // Store scientific name
                     lat: sample.lat,
                     lng: sample.lng,
                     currentRotation: 0,
                     currentHeight: 0,
                     currentOpacity: 0, // Start invisible
+                    activeWeight: 0,   // Start inactive
                     dying: false,
                     deathTime: 0
                 };
@@ -286,18 +583,29 @@ export class Compass {
             // Update data
             state.lat = sample.lat;
             state.lng = sample.lng;
+            state.name = sample.name || sample.id;
+            state.sciName = sciName; // Update scientific name
             state.dying = false;
 
-            // Fade In
-            state.currentOpacity += (1.0 - state.currentOpacity) * 0.02;
+            // Fade In (Lifecycle)
+            state.currentOpacity += (1.0 - state.currentOpacity) * 0.002; // Even slower fade in (was 0.01)
+
+            // Active State Smoothing - Linear Fade over 0.5s (approx 30 frames at 60fps)
+            const targetActive = activeSet.has(sample.id) ? 1.0 : 0.0;
+            const step = 0.033; // 1.0 / 30 frames
+            if (state.activeWeight < targetActive) {
+                state.activeWeight = Math.min(targetActive, state.activeWeight + step);
+            } else if (state.activeWeight > targetActive) {
+                state.activeWeight = Math.max(targetActive, state.activeWeight - step);
+            }
         });
 
         // 2. Handle dying markers
         this.markerStates.forEach((state, id) => {
             if (!sampleIds.has(id)) {
                 state.dying = true;
-                // Fade Out
-                state.currentOpacity += (0.0 - state.currentOpacity) * 0.02;
+                // Fade Out (Lifecycle) - Slower
+                state.currentOpacity += (0.0 - state.currentOpacity) * 0.01;
 
                 // Remove if invisible
                 if (state.currentOpacity < 0.01) {

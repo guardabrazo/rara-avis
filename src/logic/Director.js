@@ -4,6 +4,7 @@ import { XenoCantoService } from '../services/XenoCantoService';
 import { FreesoundService } from '../services/FreesoundService';
 import { SamplePlayer } from '../audio/SamplePlayer';
 import { Compass } from '../ui/Compass';
+import * as turf from '@turf/turf';
 
 export class Director {
     constructor(mapManager, uiManager) {
@@ -119,7 +120,7 @@ export class Director {
 
     update(mapData) {
         // 1. Move Map
-        this.wanderer.update(mapData.type);
+        this.wanderer.update(mapData.type, mapData.elevation);
 
         // Update Visualization Amplitudes
         if (this.player) {
@@ -135,7 +136,7 @@ export class Director {
 
             // Info for Compass
             const center = this.mapManager.getCenter();
-            const elevation = this.mapManager.map.queryTerrainElevation(center) || 0;
+            const elevation = mapData.elevation || this.mapManager.map.queryTerrainElevation(center) || 0;
             const info = {
                 lat: center.lat,
                 lng: center.lng,
@@ -151,6 +152,18 @@ export class Director {
 
         // 2. Fetch new samples periodically (Always fetch to keep pool fresh)
         this.checkAndFetchSamples();
+
+        // 2.5 Process Pending Samples (Add 1 per frame)
+        if (this.pendingSamples && this.pendingSamples.length > 0) {
+            const nextSample = this.pendingSamples.shift();
+            // Only add if not already in pool
+            if (!this.samplePool.some(s => s.id === nextSample.id)) {
+                this.samplePool.push(nextSample);
+                // Respect max pool size by removing oldest non-playing if needed
+                // But we rely on culling mostly. If we strictly enforce size here, we might churn.
+                // Let's just add for now, culling will handle distance.
+            }
+        }
 
         // 3. Schedule Playback from Pool (Only if playing)
         if (this.isPlaying) {
@@ -183,8 +196,14 @@ export class Director {
         this.lastFetchTime = now;
         this.lastFetchLocation = center;
 
-        // CULL DISTANT SAMPLES (Hybrid: Distance + FIFO)
-        this.cullDistantSamples(center);
+        // CULL DISTANT SAMPLES (One by one per frame is handled in update, but we can trigger a check here too or just rely on update loop)
+        // Actually, let's move culling to update loop for "one by one" behavior?
+        // The user said "Don't cull samples in batches, do it one by one".
+        // So we should call a granular culling method in update().
+        // For now, let's just do the fetch here.
+
+        // We'll call granular culling in update() instead of here.
+        this.cullOneDistantSample(center);
 
         try {
             // Parallel Fetch
@@ -199,44 +218,26 @@ export class Director {
                 })
             ]);
 
-            // Update Bird Pool
+            // Update Bird Pool -> Pending Queue
             if (birdSamples.length > 0) {
-                const newSamples = birdSamples.filter(s => !this.samplePool.some(existing => existing.id === s.id));
-                if (newSamples.length > 0) {
-                    // Combine new and existing
-                    let combined = [...newSamples, ...this.samplePool];
+                if (!this.pendingSamples) this.pendingSamples = [];
+                // Filter duplicates against pool AND pending
+                const newSamples = birdSamples.filter(s =>
+                    !this.samplePool.some(existing => existing.id === s.id) &&
+                    !this.pendingSamples.some(pending => pending.id === s.id)
+                );
 
-                    // Get currently playing IDs
-                    const playingIds = this.player ? this.player.players.map(p => p.metadata && p.metadata.id).filter(Boolean) : [];
-
-                    // Separate playing vs others
-                    const playing = combined.filter(s => playingIds.includes(s.id));
-                    const others = combined.filter(s => !playingIds.includes(s.id));
-
-                    // Trim 'others' to fit maxPoolSize (minus playing count)
-                    const spaceLeft = Math.max(0, this.maxPoolSize - playing.length);
-                    const keptOthers = others.slice(0, spaceLeft);
-
-                    this.samplePool = [...playing, ...keptOthers];
-                }
+                // Shuffle new samples so we don't just add them in list order?
+                // Or just add them.
+                this.pendingSamples.push(...newSamples);
             }
 
-            // Update Field Pool
+            // Update Field Pool (Direct update for now as they are few, or add to same queue?)
+            // Field pool is separate. Let's keep it simple for field pool as it's small.
             if (fieldSamples.length > 0) {
                 const newField = fieldSamples.filter(s => !this.fieldPool.some(existing => existing.id === s.id));
                 if (newField.length > 0) {
-                    let combined = [...newField, ...this.fieldPool];
-
-                    // Protect playing
-                    const playingIds = this.player ? this.player.players.map(p => p.metadata && p.metadata.id).filter(Boolean) : [];
-                    const playing = combined.filter(s => playingIds.includes(s.id));
-                    const others = combined.filter(s => !playingIds.includes(s.id));
-
-                    const maxField = 10;
-                    const spaceLeft = Math.max(0, maxField - playing.length);
-                    const keptOthers = others.slice(0, spaceLeft);
-
-                    this.fieldPool = [...playing, ...keptOthers];
+                    this.fieldPool = [...this.fieldPool, ...newField];
                 }
             }
         } catch (e) {
@@ -244,32 +245,39 @@ export class Director {
         }
     }
 
-    cullDistantSamples(center) {
+    cullOneDistantSample(center) {
         const playingIds = new Set(this.player ? this.player.players.map(p => p.metadata && p.metadata.id).filter(Boolean) : []);
-        const cullDistKm = this.searchRadius * 1.5; // Cull if > 1.5x search radius
+        const cullDistKm = this.searchRadius * 1.5;
 
-        // Filter Bird Pool
-        const initialBirdCount = this.samplePool.length;
-        this.samplePool = this.samplePool.filter(s => {
-            if (playingIds.has(s.id)) return true; // Keep playing
+        // Find ONE sample that is too far and NOT playing
+        let worstIdx = -1;
+        let maxDist = -1;
+
+        for (let i = 0; i < this.samplePool.length; i++) {
+            const s = this.samplePool[i];
+            if (playingIds.has(s.id)) continue;
+            if (typeof s.lat !== 'number' || typeof s.lng !== 'number') {
+                // Invalid coords, remove immediately
+                worstIdx = i;
+                break;
+            }
+
             const start = turf.point([center.lng, center.lat]);
             const end = turf.point([s.lng, s.lat]);
             const dist = turf.distance(start, end);
-            return dist <= cullDistKm;
-        });
 
-        // Filter Field Pool
-        this.fieldPool = this.fieldPool.filter(s => {
-            if (playingIds.has(s.id)) return true; // Keep playing
-            const start = turf.point([center.lng, center.lat]);
-            const end = turf.point([s.lng, s.lat]);
-            const dist = turf.distance(start, end);
-            return dist <= cullDistKm;
-        });
+            if (dist > cullDistKm) {
+                // Found a candidate. Is it the furthest?
+                if (dist > maxDist) {
+                    maxDist = dist;
+                    worstIdx = i;
+                }
+            }
+        }
 
-        const culledCount = initialBirdCount - this.samplePool.length;
-        if (culledCount > 0) {
-            console.log(`Culled ${culledCount} distant samples.`);
+        if (worstIdx !== -1) {
+            const removed = this.samplePool.splice(worstIdx, 1)[0];
+            console.log(`Culled distant sample: ${removed.name} (${maxDist ? maxDist.toFixed(1) : '?'}km)`);
         }
     }
 
@@ -289,18 +297,17 @@ export class Director {
         this.lastFetchTime = 0;
         this.lastFetchLocation = null;
 
-        // 4. Clear Compass Markers (by updating with empty list)
-        // The next update loop will handle this, but we can force it if needed.
-        // Actually, since we cleared the pools, the next update() call will pass empty arrays to compass.update()
-        // which will call updateMarkerStates([]) which will mark everything as dying.
-        // To make it instant, we can manually clear the compass state if we had access, 
-        // but letting them fade out quickly is also fine. 
-        // If "instant" is required:
+        // 4. Clear UI
+        if (this.uiManager) {
+            this.uiManager.clearNowPlaying();
+        }
+
+        // 5. Clear Compass Markers
         if (this.compass) {
             this.compass.markerStates.clear();
         }
 
-        // 5. Fetch Immediately
+        // 6. Fetch Immediately
         this.checkAndFetchSamples();
     }
 
@@ -320,26 +327,40 @@ export class Director {
                     return (countA - countB) + (Math.random() * 2 - 1);
                 });
 
-                const topN = Math.min(3, candidates.length);
-                const sample = candidates[Math.floor(Math.random() * topN)];
-                sample.playCount = (sample.playCount || 0) + 1;
+                // Filter candidates by distance to currently playing samples
+                const playingSamples = this.player.players.map(p => p.metadata).filter(Boolean);
+                const minSeparation = 0.005; // approx 500m
 
-                const pan = (Math.random() * 1.6) - 0.8;
-                const volume = (0.4 + (Math.random() * 0.4)) * this.birdsVolume; // Apply Master Bird Volume
-
-                if (this.uiManager) this.uiManager.addPlayingSample(sample);
-
-                // Ensure source type is set
-                sample.source = 'xeno-canto';
-
-                this.player.play(sample.file, sample, {
-                    pan,
-                    volume,
-                    onEnded: () => {
-                        if (this.uiManager) this.uiManager.removePlayingSample(sample.id);
-                        // if (this.visLayer) this.visLayer.removeNode(sample.id); // Removed
-                    }
+                const validCandidates = candidates.filter(c => {
+                    return !playingSamples.some(p => {
+                        const dx = c.lng - p.lng;
+                        const dy = c.lat - p.lat;
+                        return (dx * dx + dy * dy) < (minSeparation * minSeparation);
+                    });
                 });
+
+                if (validCandidates.length > 0) {
+                    const topN = Math.min(3, validCandidates.length);
+                    const sample = validCandidates[Math.floor(Math.random() * topN)];
+                    sample.playCount = (sample.playCount || 0) + 1;
+
+                    const pan = (Math.random() * 1.6) - 0.8;
+                    const volume = (0.4 + (Math.random() * 0.4)) * this.birdsVolume; // Apply Master Bird Volume
+
+                    if (this.uiManager) this.uiManager.addPlayingSample(sample);
+
+                    // Ensure source type is set
+                    sample.source = 'xeno-canto';
+
+                    this.player.play(sample.file, sample, {
+                        pan,
+                        volume,
+                        onEnded: () => {
+                            if (this.uiManager) this.uiManager.removePlayingSample(sample.id);
+                            // if (this.visLayer) this.visLayer.removeNode(sample.id); // Removed
+                        }
+                    });
+                }
 
                 // Add Visual Node
                 // if (this.visLayer && sample.lat && sample.lng) {
@@ -376,41 +397,6 @@ export class Director {
                 });
             }
         }
-    }
-
-    cullDistantSamples(center) {
-        const cullRadius = this.searchRadius * 3; // Keep samples within 3x search radius
-        const cullRadiusDeg = cullRadius / 111; // Approx degrees
-
-        // Get currently playing IDs to prevent culling them
-        const playingIds = this.player ? this.player.players.map(p => p.metadata && p.metadata.id).filter(Boolean) : [];
-
-        const filterPool = (pool, name) => {
-            const initialCount = pool.length;
-            const kept = pool.filter(sample => {
-                // ALWAYS KEEP PLAYING SAMPLES
-                if (playingIds.includes(sample.id)) return true;
-
-                // Handle samples without coords (e.g. some freesound results might be vague, but we try to get coords)
-                if (!sample.lat || !sample.lng) return true;
-
-                const dx = sample.lng - center.lng;
-                const dy = sample.lat - center.lat;
-                const distDeg = Math.sqrt(dx * dx + dy * dy);
-
-                // Simple Euclidean check on degrees is sufficient for this scale
-                return distDeg < cullRadiusDeg;
-            });
-
-            const removedCount = initialCount - kept.length;
-            if (removedCount > 0) {
-                // console.log(`Culled ${removedCount} distant samples from ${name} pool.`);
-            }
-            return kept;
-        };
-
-        this.samplePool = filterPool(this.samplePool, 'Birds');
-        this.fieldPool = filterPool(this.fieldPool, 'Field');
     }
 
     getConductorState() {

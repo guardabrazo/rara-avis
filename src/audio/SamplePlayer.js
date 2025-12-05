@@ -86,7 +86,7 @@ export class SamplePlayer {
     }
 
     stopAll() {
-        this.players.forEach(p => p.stop());
+        [...this.players].forEach(p => p.stop());
         this.players = [];
     }
 

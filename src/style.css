@@ -47,14 +47,18 @@
 .theme-outdoors {
     --compass-primary: #000000;
     --compass-secondary: #666666;
-    --compass-bg: rgba(255, 255, 255, 0.4);
+    --compass-bg: transparent;
 }
 
 /* Theme: Satellite (High Contrast) */
 .theme-satellite {
     --compass-primary: #ffffff;
     --compass-secondary: rgba(255, 255, 255, 0.7);
-    --compass-bg: rgba(0, 0, 0, 0.2);
+}
+
+.theme-satellite #compass-ring {
+    opacity: 1;
+    border-color: #ffffff;
 }
 
 /* Reset & Base */
@@ -220,7 +224,8 @@ body {
     flex: 1;
     overflow: hidden;
     position: relative;
-    z-index: 10;
+    z-index: 100;
+    /* Boosted to ensure it covers compass (z=5) */
     pointer-events: none;
     /* Allow clicks to pass through to map */
 }
@@ -296,10 +301,39 @@ body {
     z-index: 0;
 }
 
+/* Compass Container */
+#compass-container {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 200px;
+    /* Base size */
+    height: 200px;
+    transform: translate(-50%, -50%);
+    z-index: 5;
+    /* Above map (0), below UI */
+    pointer-events: none;
+    transition: opacity 0.5s ease, visibility 0.5s ease;
+    /* Fade + Visibility */
+    opacity: 1;
+    visibility: visible;
+    /* Ensure it doesn't poke through UI */
+    transform-style: preserve-3d;
+    display: flex;
+    /* Ensure display is set */
+}
+
+#compass-container.hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+}
+
 #compass-ring {
     width: 100%;
     height: 100%;
-    border: 1px dashed var(--compass-primary);
+    border: 1px dashed rgba(255, 255, 255, 0.3);
+    /* Dimmer outer ring */
     border-radius: 50%;
     position: absolute;
     top: 0;
@@ -309,19 +343,7 @@ body {
     background: var(--compass-bg);
 }
 
-#compass-ring-inner {
-    width: 80%;
-    height: 80%;
-    border: 1px dashed var(--compass-secondary);
-    /* Dashed and muted for contrast */
-    border-radius: 50%;
-    position: absolute;
-    top: 10%;
-    /* Center it (100-80)/2 */
-    left: 10%;
-    pointer-events: none;
-    z-index: 5;
-}
+/* Inner Ring Removed */
 
 /* Scanner Crosshair */
 .scanner-crosshair {
@@ -795,8 +817,93 @@ button:active {
     line-height: 1.4;
 }
 
-.sub-credit {
-    font-size: 8px;
+/* Mapbox Controls Styling (Black & White) */
+.mapboxgl-ctrl-group {
+    background: #000000 !important;
+    border: 1px solid #333333 !important;
+    border-radius: 4px !important;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.5) !important;
+}
+
+.mapboxgl-ctrl-group button {
+    background-color: transparent !important;
+    border-bottom: 1px solid #333333 !important;
+}
+
+.mapboxgl-ctrl-group button:last-child {
+    border-bottom: none !important;
+}
+
+.mapboxgl-ctrl-group button:hover {
+    background-color: #1a1a1a !important;
+}
+
+/* Icons */
+.mapboxgl-ctrl-icon {
+    filter: invert(1) !important;
+    /* Invert black icons to white */
+}
+
+/* Custom Thinner Zoom Icons */
+.mapboxgl-ctrl-zoom-in .mapboxgl-ctrl-icon {
+    background-image: none !important;
+    position: relative;
+    filter: none !important;
+    /* Disable global invert since we draw in white */
+}
+
+.mapboxgl-ctrl-zoom-in .mapboxgl-ctrl-icon::before,
+.mapboxgl-ctrl-zoom-in .mapboxgl-ctrl-icon::after {
+    content: '';
+    position: absolute;
+    background: white;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+/* Horizontal bar */
+.mapboxgl-ctrl-zoom-in .mapboxgl-ctrl-icon::before {
+    width: 10px;
+    height: 1px;
+}
+
+/* Vertical bar */
+.mapboxgl-ctrl-zoom-in .mapboxgl-ctrl-icon::after {
+    width: 1px;
+    height: 10px;
+}
+
+.mapboxgl-ctrl-zoom-out .mapboxgl-ctrl-icon {
+    background-image: none !important;
+    position: relative;
+    filter: none !important;
+    /* Disable global invert */
+}
+
+.mapboxgl-ctrl-zoom-out .mapboxgl-ctrl-icon::before {
+    content: '';
+    position: absolute;
+    background: white;
+    width: 10px;
+    height: 1px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+/* Compass Arrow */
+.mapboxgl-ctrl-compass-arrow {
+    border-bottom-color: #ffffff !important;
+    /* North arrow white */
+    border-top-color: #666666 !important;
+    /* South arrow gray */
+}
+
+/* Remove default outlines */
+.mapboxgl-ctrl button:focus {
+    box-shadow: none !important;
+    border-color: #ffffff !important;
 }
 
 /* Scrollbar Styling */
@@ -1064,7 +1171,8 @@ body.zen-mode .center-panel {
     position: absolute;
     width: 100%;
     height: 100%;
-    border: 1px solid var(--accent);
+    border: 1px solid var(--border-active);
+    opacity: 0.3;
     border-radius: 50%;
     /* Removed box-shadow */
 }
@@ -1072,8 +1180,8 @@ body.zen-mode .center-panel {
 #compass-ring::after {
     content: 'N';
     position: absolute;
-    top: -25px;
-    /* Increased offset from -20px */
+    top: -70px;
+    /* Adjusted to sit just on top */
     left: 50%;
     transform: translateX(-50%);
     width: auto;
@@ -1118,24 +1226,25 @@ body.zen-mode .center-panel {
     /* Above markers, below ring? */
 }
 
-/* Outdoors Theme Overrides (Blue + White) */
+/* Outdoors Theme Overrides (Black + White) */
 .theme-outdoors #compass-ring {
-    border-color: #438FF0;
-    background: rgba(255, 255, 255, 0.7);
+    border-color: #000000;
+    opacity: 1;
+    /* background: rgba(255, 255, 255, 0.7); */
     /* White fill */
 }
 
 .theme-outdoors #compass-ring::after {
-    color: #438FF0;
+    color: #000000;
     text-shadow: none;
 }
 
 .theme-outdoors #compass-flight-arrow {
-    border-bottom-color: #438FF0;
+    border-bottom-color: #000000;
 }
 
 .theme-outdoors #compass-info {
-    color: #438FF0;
+    color: #000000;
     text-shadow: none;
     font-weight: bold;
 }

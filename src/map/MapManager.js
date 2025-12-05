@@ -58,6 +58,11 @@ export class MapManager {
             maxPitch: 70,
         });
 
+        // Add Navigation Control (Zoom / Compass)
+        this.map.addControl(new mapboxgl.NavigationControl({
+            visualizePitch: true
+        }), 'top-right');
+
         this.isInteracting = false;
         this.interactionTimeout = null;
 
@@ -68,10 +73,10 @@ export class MapManager {
 
 
                 // Track User Interaction
-                const explicitStartEvents = ['mousedown', 'touchstart', 'dragstart', 'rotatestart', 'pitchstart'];
-                const explicitEndEvents = ['mouseup', 'touchend', 'dragend', 'rotateend', 'pitchend'];
+                const explicitStartEvents = ['mousedown', 'touchstart', 'dragstart', 'rotatestart', 'pitchstart', 'zoomstart'];
+                const explicitEndEvents = ['mouseup', 'touchend', 'dragend', 'rotateend', 'pitchend', 'zoomend'];
 
-                // 1. Explicit Start/End (Drag, Rotate, Pitch)
+                // 1. Explicit Start/End (Drag, Rotate, Pitch, Zoom)
                 explicitStartEvents.forEach(e => {
                     this.map.on(e, () => {
                         this.isInteracting = true;
@@ -81,7 +86,10 @@ export class MapManager {
                 });
 
                 const endInteraction = () => {
-                    this.isInteracting = false;
+                    // Small delay to ensure animations clear
+                    this.interactionTimeout = setTimeout(() => {
+                        this.isInteracting = false;
+                    }, 100);
                 };
 
                 explicitEndEvents.forEach(e => {
@@ -99,17 +107,10 @@ export class MapManager {
 
                     // Debounce: Assume interaction ended if no scroll for 300ms
                     this.interactionTimeout = setTimeout(() => {
-                        // Only clear if we're not currently in an explicit drag
-                        // (We can't easily know, but usually wheel doesn't happen during drag)
-                        // For safety, we just set it false. If user is dragging, the drag events will keep setting it true? 
-                        // No, drag events only fire on move. 
-                        // Actually, if we are dragging, 'mousedown' set isInteracting=true.
-                        // We shouldn't let wheel timeout clear that.
-                        // But 'wheel' sets isInteracting=true too.
-                        // Let's rely on the fact that wheel is usually separate.
                         this.isInteracting = false;
                     }, 300);
                 });
+
                 resolve();
             });
         });
