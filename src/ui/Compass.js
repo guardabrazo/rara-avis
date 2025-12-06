@@ -47,6 +47,12 @@ export class Compass {
         this.currentFlightRotation = 0;
         this.userScale = 1.2; // Default Size 1.2x
         this.mode = 'crosshair'; // Explicitly set default mode
+
+        // Ensure transition is set
+        if (this.parentContainer) {
+            this.parentContainer.style.transition = 'opacity 0.5s ease';
+            this.parentContainer.style.opacity = '1';
+        }
     }
 
     // ...
@@ -124,7 +130,7 @@ export class Compass {
             // Outdoors: Black + White Theme
             this.colors.primary = '#000000';
             this.colors.active = '#000000'; // Black Active
-            this.colors.inactiveBase = '#000000'; // Black Inactive
+            this.colors.inactiveBase = '#333333'; // Black Inactive
             this.parentContainer.classList.add('theme-outdoors');
             this.currentTheme = 'outdoors';
         } else if (theme && theme.includes('satellite')) {
@@ -214,13 +220,28 @@ export class Compass {
 
     hide() {
         if (this.parentContainer) {
-            this.parentContainer.classList.add('hidden');
+            // Force transition and state
+            this.parentContainer.style.transition = 'opacity 0.5s ease';
+            // Force reflow
+            void this.parentContainer.offsetWidth;
+            this.parentContainer.style.opacity = '0';
+        } else {
+            console.error('Compass.hide() failed: parentContainer not found');
         }
     }
 
     show() {
         if (this.parentContainer) {
-            this.parentContainer.classList.remove('hidden');
+            // Ensure display is not none (recover from bad state)
+            this.parentContainer.style.display = '';
+
+            // Force transition and state
+            this.parentContainer.style.transition = 'opacity 0.5s ease';
+            // Force reflow
+            void this.parentContainer.offsetWidth;
+            this.parentContainer.style.opacity = '1';
+        } else {
+            console.error('Compass.show() failed: parentContainer not found');
         }
     }
 
@@ -962,9 +983,5 @@ export class Compass {
         this.ctx.restore();
     }
 
-    hide() {
-        if (this.parentContainer) {
-            this.parentContainer.style.display = 'none';
-        }
-    }
+
 }

@@ -68,8 +68,8 @@ export class MapManager {
 
         return new Promise((resolve) => {
             this.map.on('load', () => {
-                this.addTerrain();
-                this.applyStyleOverrides(initialStyle);
+                // this.addTerrain(); // Removed
+                // this.applyStyleOverrides(initialStyle); // Removed
 
 
                 // Track User Interaction
@@ -111,54 +111,48 @@ export class MapManager {
                     }, 300);
                 });
 
+                // Apply the initial style with overrides (Terrain, Contours, etc.)
+                this.setStyle(initialStyle);
+
                 resolve();
             });
         });
     }
 
-    addTerrain() {
-        if (!this.map.getSource('mapbox-dem')) {
-            this.map.addSource('mapbox-dem', {
+    async setStyle(styleUrl) {
+        try {
+            // 1. Fetch the Style JSON
+            const response = await fetch(this.getStyleUrl(styleUrl));
+            const styleJson = await response.json();
+
+            // 2. Merge Terrain Source & Config
+            if (!styleJson.sources) styleJson.sources = {};
+
+            // Ensure mapbox-dem source is present in the new style
+            styleJson.sources['mapbox-dem'] = {
                 type: 'raster-dem',
                 url: 'mapbox://mapbox.mapbox-terrain-dem-v1',
                 tileSize: 512,
                 maxzoom: 14,
-            });
-        }
-        this.map.setTerrain({ source: 'mapbox-dem', exaggeration: 1.2 });
-    }
+            };
 
-    setStyle(styleUrl) {
-        this.map.setStyle(styleUrl);
-        this.map.once('style.load', () => {
-            this.addTerrain();
-            this.applyStyleOverrides(styleUrl);
-        });
-    }
+            // Ensure terrain is enabled in the new style
+            styleJson.terrain = { source: 'mapbox-dem', exaggeration: 1.2 };
 
-    applyStyleOverrides(styleUrl) {
-        // 1. Dark Mode: Add Contours
-        if (styleUrl.includes('dark')) {
-            if (!this.map.getSource('contours')) {
-                this.map.addSource('contours', {
+            // 3. Apply Mode-Specific Overrides (Dark Mode Contours)
+            if (styleUrl.includes('dark')) {
+                // Add Contours Source
+                styleJson.sources['contours'] = {
                     type: 'vector',
                     url: 'mapbox://mapbox.mapbox-terrain-v2'
-                });
-            }
+                };
 
-            // Find the first symbol layer to insert contours below
-            const layers = this.map.getStyle().layers;
-            let firstSymbolId;
-            for (const layer of layers) {
-                if (layer.type === 'symbol') {
-                    firstSymbolId = layer.id;
-                    break;
-                }
-            }
+                // Find insertion point (below labels)
+                let firstSymbolIndex = styleJson.layers.findIndex(l => l.type === 'symbol');
+                if (firstSymbolIndex === -1) firstSymbolIndex = styleJson.layers.length;
 
-            // Add Hillshading (Shadowing)
-            if (!this.map.getLayer('hillshading')) {
-                this.map.addLayer({
+                // Create Custom Layers
+                const hillshadeLayer = {
                     'id': 'hillshading',
                     'type': 'hillshade',
                     'source': 'mapbox-dem',
@@ -170,64 +164,77 @@ export class MapManager {
                         'hillshade-exaggeration': 0.05,
                         'hillshade-opacity': 0.1
                     }
-                }, firstSymbolId); // Insert below labels
-            }
+                };
 
-            if (!this.map.getLayer('contour-lines-minor')) {
-                this.map.addLayer({
+                const minorContours = {
                     'id': 'contour-lines-minor',
                     'type': 'line',
                     'source': 'contours',
                     'source-layer': 'contour',
                     'filter': ['!=', ['%', ['get', 'ele'], 100], 0],
-                    'layout': {
-                        'line-join': 'round',
-                        'line-cap': 'round'
-                    },
+                    'layout': { 'line-join': 'round', 'line-cap': 'round' },
                     'paint': {
                         'line-color': '#ffffff',
                         'line-width': 0.5,
                         'line-opacity': 0.075
                     }
-                }, firstSymbolId);
-            }
-            if (!this.map.getLayer('contour-lines-major')) {
-                this.map.addLayer({
+                };
+
+                const majorContours = {
                     'id': 'contour-lines-major',
                     'type': 'line',
                     'source': 'contours',
                     'source-layer': 'contour',
                     'filter': ['==', ['%', ['get', 'ele'], 100], 0],
-                    'layout': {
-                        'line-join': 'round',
-                        'line-cap': 'round'
-                    },
+                    'layout': { 'line-join': 'round', 'line-cap': 'round' },
                     'paint': {
                         'line-color': '#ffffff',
                         'line-width': 0.5,
                         'line-opacity': 0.15
                     }
-                }, firstSymbolId);
-            }
-        }
+                };
 
-        // 2. Outdoors Mode: Remove POIs and Markers
-        if (styleUrl.includes('outdoors')) {
-            const layers = this.map.getStyle().layers;
-            layers.forEach(layer => {
-                const id = layer.id;
-                if (
-                    id.includes('poi-label') ||
-                    id.includes('poi-scalerank') ||
-                    id.includes('road-label') ||
-                    id.includes('road-number-shield') ||
-                    id.includes('peak-label') ||
-                    id.includes('natural-point-label')
-                ) {
-                    this.map.setLayoutProperty(id, 'visibility', 'none');
-                }
-            });
+                // Insert Layers
+                styleJson.layers.splice(firstSymbolIndex, 0, hillshadeLayer, minorContours, majorContours);
+            }
+
+            // 4. Apply Mode-Specific Overrides (Outdoors Cleanup)
+            if (styleUrl.includes('outdoors')) {
+                styleJson.layers.forEach(layer => {
+                    const id = layer.id;
+                    if (
+                        id.includes('poi-label') ||
+                        id.includes('poi-scalerank') ||
+                        id.includes('road-label') ||
+                        id.includes('road-number-shield') ||
+                        id.includes('peak-label') ||
+                        id.includes('natural-point-label')
+                    ) {
+                        if (!layer.layout) layer.layout = {};
+                        layer.layout.visibility = 'none';
+                    }
+                });
+            }
+
+            // 5. Apply the Merged Style
+            // This prevents terrain from unloading/reloading, stopping the "jump"
+            this.map.setStyle(styleJson);
+
+        } catch (e) {
+            console.error('Failed to set map style:', e);
+            // Fallback to standard setStyle if fetch fails
+            this.map.setStyle(styleUrl);
         }
+    }
+
+    getStyleUrl(mapboxUrl) {
+        // Convert mapbox:// URL to HTTPS URL for fetching JSON
+        // Format: mapbox://styles/user/styleId
+        const parts = mapboxUrl.split('mapbox://styles/');
+        if (parts.length === 2) {
+            return `https://api.mapbox.com/styles/v1/${parts[1]}?access_token=${this.token}`;
+        }
+        return mapboxUrl;
     }
 
     getCenter() {

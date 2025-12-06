@@ -45,7 +45,7 @@
 
 /* Theme: Outdoors (Light Map) */
 .theme-outdoors {
-    --compass-primary: #000000;
+    --compass-primary: #222222;
     --compass-secondary: #666666;
     --compass-bg: transparent;
 }
@@ -313,21 +313,16 @@ body {
     z-index: 5;
     /* Above map (0), below UI */
     pointer-events: none;
-    transition: opacity 0.5s ease, visibility 0.5s ease;
-    /* Fade + Visibility */
+    transition: opacity 0.5s ease;
+    /* Fade Only */
     opacity: 1;
-    visibility: visible;
     /* Ensure it doesn't poke through UI */
     transform-style: preserve-3d;
     display: flex;
     /* Ensure display is set */
 }
 
-#compass-container.hidden {
-    opacity: 0;
-    visibility: hidden;
-    pointer-events: none;
-}
+
 
 #compass-ring {
     width: 100%;

@@ -44,7 +44,11 @@ export class Director {
         if (this.uiManager) {
             this.uiManager.on('setCompass', (enabled) => {
                 this.showCompass = enabled;
-                if (!enabled) this.compass.hide();
+                if (enabled) {
+                    this.compass.show();
+                } else {
+                    this.compass.hide();
+                }
             });
 
             this.uiManager.on('setFlight', (enabled) => {
@@ -145,8 +149,6 @@ export class Director {
 
             if (this.showCompass) {
                 this.compass.update(this.mapManager.map, allSamples, amps, playingIds, flightBearing, pitch, info);
-            } else {
-                this.compass.hide();
             }
         }
 
