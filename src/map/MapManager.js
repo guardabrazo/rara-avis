@@ -45,8 +45,7 @@ export class MapManager {
         const randomStart = MapManager.INTERESTING_LOCATIONS[Math.floor(Math.random() * MapManager.INTERESTING_LOCATIONS.length)];
         console.log('Starting at:', randomStart.name);
 
-        const isMobile = window.innerWidth <= 768;
-        const initialStyle = isMobile ? 'mapbox://styles/mapbox/satellite-v9' : 'mapbox://styles/mapbox/dark-v11';
+        const initialStyle = 'mapbox://styles/mapbox/satellite-v9';
 
         this.map = new mapboxgl.Map({
             container: containerId,
